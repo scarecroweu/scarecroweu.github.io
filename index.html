@@ -11,6 +11,17 @@
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wwght@0,300;0,400;0,500;0,600&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
   <link rel="stylesheet" href="css/styles.css">
+  <script>
+  (function(){
+    var c=document.createElement('canvas');c.width=180;c.height=180;
+    var x=c.getContext('2d');
+    x.fillStyle='#c49a6c';x.fillRect(0,0,180,180);
+    x.strokeStyle='#0a0a0a';x.lineWidth=11;x.beginPath();x.arc(90,84,42,0,6.2832);x.stroke();
+    x.fillStyle='#0a0a0a';x.beginPath();x.arc(90,84,14,0,6.2832);x.fill();
+    x.fillStyle='rgba(10,10,10,0.3)';x.beginPath();x.moveTo(82,136);x.lineTo(90,143);x.lineTo(98,136);x.closePath();x.fill();
+    var l=document.createElement('link');l.rel='apple-touch-icon';l.href=c.toDataURL('image/png');document.head.appendChild(l);
+  })();
+  </script>
 </head>
 <body>
   <input type="file" id="fileInput" accept="image/*" hidden>
@@ -48,7 +59,7 @@
         <button class="btn icon-btn" id="undoBtn" title="Undo"><i class="fa-solid fa-rotate-left"></i></button>
         <button class="btn icon-btn" id="newBtn" title="New image"><i class="fa-solid fa-folder-open"></i></button>
         <button class="btn icon-btn" id="resetBtn" title="Reset all"><i class="fa-solid fa-arrows-rotate"></i></button>
-        <button class="btn btn-accent" id="downloadBtn"><i class="fa-solid fa-download"></i><span class="btn-text">Download</span></button>
+        <button class="btn btn-accent" id="downloadBtn"><i class="fa-solid fa-download"></i><span class="btn-text">Save</span></button>
       </div>
     </header>
 
@@ -93,8 +104,8 @@
         <div class="tools-panel">
           <div class="brush-types" id="brushTypes"></div>
           <div class="brush-sliders">
-            <div class="slider-row"><div class="slider-label">Size</div><div class="slider-wrap"><input type="range" id="brushSize" min="5" max="150" value="40"></div><div class="slider-val" id="brushSizeVal">40</div></div>
-            <div class="slider-row"><div class="slider-label">Strength</div><div class="slider-wrap"><input type="range" id="brushStrength" min="1" max="100" value="50"></div><div class="slider-val" id="brushStrengthVal">50</div></div>
+            <div class="slider-row"><div class="slider-label">Size</div><div class="slider-wrap"><input type="range" id="brushSize" min="5" max="150" value="40"></div><input type="number" class="slider-val" id="brushSizeVal" value="40" min="5" max="150"></div>
+            <div class="slider-row"><div class="slider-label">Strength</div><div class="slider-wrap"><input type="range" id="brushStrength" min="1" max="100" value="50"></div><input type="number" class="slider-val" id="brushStrengthVal" value="50" min="1" max="100"></div>
           </div>
           <div class="brush-options"><label class="toggle-row"><span class="toggle-label-text">Show brush cursor</span><label class="toggle"><input type="checkbox" id="brushCursorToggle" checked><span class="slider"></span></label></label></div>
           <div class="brush-actions"><button class="btn small-btn" id="clearBrushBtn"><i class="fa-solid fa-trash-can"></i> Clear All</button></div>
@@ -106,14 +117,14 @@
           <div class="text-list" id="textList"></div>
           <div class="text-props" id="textProps" style="display:none">
             <div class="slider-row"><div class="slider-label">Content</div><div class="slider-wrap"><input type="text" id="textContent" class="text-input" placeholder="Type here..."></div></div>
-            <div class="slider-row"><div class="slider-label">Size</div><div class="slider-wrap"><input type="range" id="textSize" min="12" max="120" value="32"></div><div class="slider-val" id="textSizeVal">32</div></div>
+            <div class="slider-row"><div class="slider-label">Size</div><div class="slider-wrap"><input type="range" id="textSize" min="12" max="120" value="32"></div><input type="number" class="slider-val" id="textSizeVal" value="32" min="12" max="120"></div>
             <div class="slider-row"><div class="slider-label">Color</div><div class="slider-wrap"><input type="color" id="textColor" value="#ffffff" class="color-input"></div></div>
             <div class="slider-row"><div class="slider-label">Font</div><div class="slider-wrap"><select id="textFont" class="select-input"><option value="DM Sans">Sans</option><option value="Georgia">Serif</option><option value="Courier New">Mono</option><option value="cursive">Handwriting</option><option value="Space Grotesk">Grotesk</option></select></div></div>
-            <div class="slider-row"><div class="slider-label">Opacity</div><div class="slider-wrap"><input type="range" id="textOpacity" min="0" max="100" value="100"></div><div class="slider-val" id="textOpacityVal">100%</div></div>
-            <div class="slider-row"><div class="slider-label">Blur</div><div class="slider-wrap"><input type="range" id="textBlur" min="0" max="20" value="0" step="0.5"></div><div class="slider-val" id="textBlurVal">0</div></div>
-            <div class="text-option-group"><div class="effect-header"><span class="effect-label" style="font-size:12px">Glow</span><label class="toggle"><input type="checkbox" id="textGlow"><span class="slider"></span></label></div><div class="text-option-sub" id="textGlowSub" style="display:none"><div class="slider-row"><div class="slider-label">Color</div><div class="slider-wrap"><input type="color" id="textGlowColor" value="#ffffff" class="color-input"></div></div><div class="slider-row"><div class="slider-label">Intensity</div><div class="slider-wrap"><input type="range" id="textGlowIntensity" min="1" max="50" value="20"></div><div class="slider-val" id="textGlowIntensityVal">20</div></div></div></div>
-            <div class="text-option-group"><div class="effect-header"><span class="effect-label" style="font-size:12px">Outline</span><label class="toggle"><input type="checkbox" id="textOutline"><span class="slider"></span></label></div><div class="text-option-sub" id="textOutlineSub" style="display:none"><div class="slider-row"><div class="slider-label">Color</div><div class="slider-wrap"><input type="color" id="textOutlineColor" value="#000000" class="color-input"></div></div><div class="slider-row"><div class="slider-label">Width</div><div class="slider-wrap"><input type="range" id="textOutlineWidth" min="1" max="10" value="2"></div><div class="slider-val" id="textOutlineWidthVal">2</div></div></div></div>
-            <div class="slider-row"><div class="slider-label">Spacing</div><div class="slider-wrap"><input type="range" id="textLetterSpacing" min="-5" max="20" value="0"></div><div class="slider-val" id="textLetterSpacingVal">0</div></div>
+            <div class="slider-row"><div class="slider-label">Opacity</div><div class="slider-wrap"><input type="range" id="textOpacity" min="0" max="100" value="100"></div><input type="number" class="slider-val" id="textOpacityVal" value="100" min="0" max="100"></div>
+            <div class="slider-row"><div class="slider-label">Blur</div><div class="slider-wrap"><input type="range" id="textBlur" min="0" max="20" value="0" step="0.5"></div><input type="number" class="slider-val" id="textBlurVal" value="0" min="0" max="20" step="0.5"></div>
+            <div class="text-option-group"><div class="effect-header"><span class="effect-label" style="font-size:12px">Glow</span><label class="toggle"><input type="checkbox" id="textGlow"><span class="slider"></span></label></div><div class="text-option-sub" id="textGlowSub" style="display:none"><div class="slider-row"><div class="slider-label">Color</div><div class="slider-wrap"><input type="color" id="textGlowColor" value="#ffffff" class="color-input"></div></div><div class="slider-row"><div class="slider-label">Intensity</div><div class="slider-wrap"><input type="range" id="textGlowIntensity" min="1" max="50" value="20"></div><input type="number" class="slider-val" id="textGlowIntensityVal" value="20" min="1" max="50"></div></div></div>
+            <div class="text-option-group"><div class="effect-header"><span class="effect-label" style="font-size:12px">Outline</span><label class="toggle"><input type="checkbox" id="textOutline"><span class="slider"></span></label></div><div class="text-option-sub" id="textOutlineSub" style="display:none"><div class="slider-row"><div class="slider-label">Color</div><div class="slider-wrap"><input type="color" id="textOutlineColor" value="#000000" class="color-input"></div></div><div class="slider-row"><div class="slider-label">Width</div><div class="slider-wrap"><input type="range" id="textOutlineWidth" min="1" max="10" value="2"></div><input type="number" class="slider-val" id="textOutlineWidthVal" value="2" min="1" max="10"></div></div></div>
+            <div class="slider-row"><div class="slider-label">Spacing</div><div class="slider-wrap"><input type="range" id="textLetterSpacing" min="-5" max="20" value="0"></div><input type="number" class="slider-val" id="textLetterSpacingVal" value="0" min="-5" max="20"></div>
             <button class="btn small-btn danger-btn" id="deleteTextBtn"><i class="fa-solid fa-trash-can"></i> Delete</button>
           </div>
         </div>
@@ -129,8 +140,8 @@
       <div class="settings-body">
         <div class="settings-section"><h4>Keyboard Shortcuts</h4><div class="shortcut-list" id="shortcutList"></div><p class="shortcut-hint">Click a shortcut, then press the new key combination to rebind</p></div>
         <div class="settings-section"><h4>General</h4><div class="setting-row"><span>Show brush cursor</span><label class="toggle"><input type="checkbox" id="settingBrushCursor" checked><span class="slider"></span></label></div><div class="setting-row"><span>Auto-fit image on load</span><label class="toggle"><input type="checkbox" id="settingAutoFit" checked><span class="slider"></span></label></div><div class="setting-row"><span>Smooth zoom animation</span><label class="toggle"><input type="checkbox" id="settingSmoothZoom" checked><span class="slider"></span></label></div></div>
-        <div class="settings-section"><h4>Export</h4><div class="setting-row"><span>Format</span><select class="effect-select" id="settingExportFormat" style="width:auto"><option value="png">PNG</option><option value="jpeg">JPEG</option><option value="webp">WebP</option></select></div><div class="setting-row" id="qualityRow"><span>Quality</span><div class="slider-wrap" style="max-width:140px"><input type="range" id="settingExportQuality" min="10" max="100" value="92"></div><div class="slider-val" id="settingExportQualityVal">92%</div></div></div>
-        <div class="settings-section"><h4>About</h4><p class="about-text">Lab Photo Editor v1.6<br>Built with Canvas API</p></div>
+        <div class="settings-section"><h4>Export</h4><div class="setting-row"><span>Format</span><select class="effect-select" id="settingExportFormat" style="width:auto"><option value="png">PNG</option><option value="jpeg">JPEG</option><option value="webp">WebP</option></select></div><div class="setting-row" id="qualityRow"><span>Quality</span><div class="slider-wrap" style="max-width:140px"><input type="range" id="settingExportQuality" min="10" max="100" value="92"></div><input type="number" class="slider-val" id="settingExportQualityVal" value="92" min="10" max="100"></div></div>
+        <div class="settings-section"><h4>About</h4><p class="about-text">Lab Photo Editor v1.7<br>Built with Canvas API</p></div>
       </div>
     </div>
   </div>
