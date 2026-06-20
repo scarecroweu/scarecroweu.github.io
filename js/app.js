@@ -70,7 +70,21 @@
   /* Detect touch-primary for click vs dblclick */
   const IS_TOUCH=window.matchMedia('(hover:none)').matches||('ontouchstart' in window);
   const EDIT_EVT=IS_TOUCH?'click':'dblclick';
-
+  (function(){
+    const bp=document.querySelector('.bottom-panel');
+    if(!bp)return;
+    function fix(){
+      if(window.visualViewport){
+        const d=window.innerHeight-window.visualViewport.height;
+        if(d>4){bp.style.paddingBottom=d+'px';bp.style.boxSizing='border-box';return;}
+      }
+      const s=getComputedStyle(document.documentElement).getPropertyValue('padding-bottom').trim();
+      if(s&&s!=='0px'){bp.style.paddingBottom=s;bp.style.boxSizing='border-box';}
+    }
+    fix();
+    if(window.visualViewport)window.visualViewport.addEventListener('resize',fix);
+    window.addEventListener('resize',fix);
+  })();
   let toastTimer=null;
   function showToast(m){toastEl.textContent=m;toastEl.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>toastEl.classList.remove('show'),2500);}
   function fmtVal(v,s){return(s.step?v.toFixed(1):v)+s.unit;}
