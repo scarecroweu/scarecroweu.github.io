@@ -10,7 +10,8 @@ body.light-mode{
   --text:#1a1816;--muted:#8a857e;--accent:#a87d4f;--accent-dim:rgba(168,125,79,.1);
   --check-a:#e8e4da;--check-b:#ddd9cf;
 }
-html,body{height:100dvh;overflow:hidden;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden;-webkit-tap-highlight-color:transparent}
+@supports(height:100dvh){html,body{height:100dvh}}
 body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);transition:background .35s,color .35s}
 
 #uploadScreen{display:flex;align-items:center;justify-content:center;height:100dvh;position:relative;z-index:10;transition:opacity .4s,transform .4s;flex-direction:column;gap:0;padding:20px}
