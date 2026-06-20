@@ -24,7 +24,7 @@ window.PhotoLab = window.PhotoLab || {};
     if (s.grain > 0) drawGrain(ctx, w, h, s.grain);
     if (s.sharpness > 0 && w > 100) applySharpen(ctx, w, h, s.sharpness);
   }
-
+  
   function applyPixelOps(ctx, w, h, s) {
     const exp=Math.pow(2,s.exposure/100),bri=(s.brightness-100)*2.55,con=s.contrast/100,
           sat=s.saturation/100,vib=s.vibrance/100,hl=s.highlights/100,sh=s.shadows/100,
