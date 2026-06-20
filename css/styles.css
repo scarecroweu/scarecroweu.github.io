@@ -290,13 +290,14 @@ input[type="range"]::-moz-range-progress{height:3px;border-radius:2px;background
   .cam-filter-thumb{width:32px;height:32px}
 }
 @media(display-mode:standalone){
-  html,body{height:100vh;height:-webkit-fill-available}
+  html,body{height:calc(100dvh - env(safe-area-inset-bottom,0px));height:calc(100vh - env(safe-area-inset-bottom,0px))}
   .bottom-panel{padding-bottom:env(safe-area-inset-bottom,0px)}
   .editor-header{padding-top:env(safe-area-inset-top,0px)}
   .camera-top-controls{padding-top:calc(10px + env(safe-area-inset-top,0px))}
   .camera-bottom-controls{padding-bottom:calc(22px + env(safe-area-inset-bottom,0px))}
   .upload-hint{bottom:calc(14px + env(safe-area-inset-bottom,0px))}
 }
+
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{transition-duration:0s!important;animation-duration:0s!important}}
 
 .slider-val{cursor:pointer;border-radius:4px;padding:0 4px;transition:color .15s,background .15s;user-select:none;-webkit-user-select:none}
