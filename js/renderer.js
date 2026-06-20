@@ -1,0 +1,552 @@
+window.PhotoLab = window.PhotoLab || {};
+(function(){
+  const D = PhotoLab.DEFAULTS;
+  const MAX_PREVIEW = 800;
+
+  function renderToCanvas(canvas, img, s, maxDim) {
+    if (!img || !img.naturalWidth) return;
+    const ctx = canvas.getContext('2d', {willReadFrequently: true});
+    let w = canvas.width, h = canvas.height;
+    if (maxDim && maxDim > 0) {
+      const r = Math.min(maxDim / img.naturalWidth, maxDim / img.naturalHeight, 1);
+      w = Math.round(img.naturalWidth * r); h = Math.round(img.naturalHeight * r);
+      canvas.width = w; canvas.height = h;
+    }
+    const fp = [];
+    if (s.blur > 0) fp.push('blur(' + s.blur + 'px)');
+    if (s.hue !== 0) fp.push('hue-rotate(' + s.hue + 'deg)');
+    ctx.filter = fp.length ? fp.join(' ') : 'none';
+    ctx.drawImage(img, 0, 0, w, h);
+    ctx.filter = 'none';
+    applyPixelOps(ctx, w, h, s);
+    if (s.vignette > 0) drawVignette(ctx, w, h, s.vignette);
+    if (s.grain > 0) drawGrain(ctx, w, h, s.grain);
+    if (s.sharpness > 0 && w > 100) applySharpen(ctx, w, h, s.sharpness);
+  }
+
+  function applyPixelOps(ctx, w, h, s) {
+    const exp = Math.pow(2, s.exposure / 100);
+    const bri = (s.brightness - 100) * 2.55;
+    const con = s.contrast / 100;
+    const sat = s.saturation / 100;
+    const vib = s.vibrance / 100;
+    const hl = s.highlights / 100;
+    const sh = s.shadows / 100;
+    const cla = s.clarity / 100;
+    const tmp = s.temperature;
+    const tnt = s.tint;
+    const rM = s.red / 100, gM = s.green / 100, bM = s.blue / 100;
+    const fl = s.fade / 100 * 65;
+    const dh = s.dehaze / 100;
+    if (exp===1&&bri===0&&con===1&&sat===1&&vib===1&&hl===0&&sh===0&&cla===1&&tmp===0&&tnt===0&&rM===1&&gM===1&&bM===1&&fl===0&&dh===0) return;
+    const id = ctx.getImageData(0, 0, w, h);
+    const d = id.data;
+    for (let i = 0; i < d.length; i += 4) {
+      let r=d[i], g=d[i+1], b=d[i+2];
+      if (exp!==1){r*=exp;g*=exp;b*=exp;}
+      if (bri!==0){r+=bri;g+=bri;b+=bri;}
+      if (con!==1){r=(r-128)*con+128;g=(g-128)*con+128;b=(b-128)*con+128;}
+      if (hl!==0||sh!==0){
+        const lum=(r*.299+g*.587+b*.114)/255;
+        if (hl!==0&&lum>.5){const f=(lum-.5)*2;r-=hl*f*55;g-=hl*f*55;b-=hl*f*55;}
+        if (sh!==0&&lum<.5){const f=(.5-lum)*2;r+=sh*f*55;g+=sh*f*55;b+=sh*f*55;}
+      }
+      if (cla!==1){
+        const lum=(r*.299+g*.587+b*.114)/255;
+        const mF=1-Math.abs(lum-.5)*2;
+        const cA=(cla-1)*mF*45;
+        r=(r-128)*(1+cA/100)+128;g=(g-128)*(1+cA/100)+128;b=(b-128)*(1+cA/100)+128;
+      }
+      if (sat!==1){const gr=.299*r+.587*g+.114*b;r=gr+(r-gr)*sat;g=gr+(g-gr)*sat;b=gr+(b-gr)*sat;}
+      if (vib!==1){
+        const mx=Math.max(r,g,b),mn=Math.min(r,g,b),st=(mx-mn)/255;
+        const bst=1+(vib-1)*(1-st)*.6;const av=(r+g+b)/3;
+        r=av+(r-av)*bst;g=av+(g-av)*bst;b=av+(b-av)*bst;
+      }
+      if (tmp!==0){r+=tmp*.55;b-=tmp*.55;}
+      if (tnt!==0){g+=tnt*.4;r-=tnt*.2;b-=tnt*.2;}
+      if (rM!==1)r*=rM;if(gM!==1)g*=gM;if(bM!==1)b*=bM;
+      if (fl>0){r+=fl;g+=fl;b+=fl;}
+      if (dh>0){
+        const mx=Math.max(r,g,b),mn=Math.min(r,g,b);
+        if (mx-mn<80){const hF=(1-(mx-mn)/80)*dh*35;r-=hF*.3;g-=hF*.3;b-=hF*.3;}
+        const dC=1+dh*.15;r=(r-128)*dC+128;g=(g-128)*dC+128;b=(b-128)*dC+128;
+      }
+      d[i]=r<0?0:r>255?255:r|0;d[i+1]=g<0?0:g>255?255:g|0;d[i+2]=b<0?0:b>255?255:b|0;
+    }
+    ctx.putImageData(id, 0, 0);
+  }
+
+  function applySharpen(ctx, w, h, amt) {
+    const sc = amt / 100 * 1.8;
+    const id = ctx.getImageData(0, 0, w, h);
+    const d = id.data, cp = new Uint8ClampedArray(d);
+    for (let y=1;y<h-1;y++) for (let x=1;x<w-1;x++) {
+      const i=(y*w+x)*4;
+      for (let c=0;c<3;c++){
+        const ctr=cp[i+c], nb=(cp[i-4+c]+cp[i+4+c]+cp[((y-1)*w+x)*4+c]+cp[((y+1)*w+x)*4+c])*.25;
+        const v=ctr+sc*(ctr-nb);d[i+c]=v<0?0:v>255?255:v|0;
+      }
+    }
+    ctx.putImageData(id, 0, 0);
+  }
+
+  function drawVignette(ctx, w, h, amt) {
+    const mx = Math.max(w,h)*.75;
+    const g = ctx.createRadialGradient(w/2,h/2,mx*.3,w/2,h/2,mx);
+    g.addColorStop(0,'rgba(0,0,0,0)');g.addColorStop(1,'rgba(0,0,0,'+(amt/100)+')');
+    ctx.fillStyle=g;ctx.fillRect(0,0,w,h);
+  }
+
+  function drawGrain(ctx, w, h, amt) {
+    const nw=Math.ceil(w/3),nh=Math.ceil(h/3);
+    const nc=document.createElement('canvas');nc.width=nw;nc.height=nh;
+    const nctx=nc.getContext('2d');const nd=nctx.createImageData(nw,nh);const px=nd.data;const a=amt*2;
+    for(let i=0;i<px.length;i+=4){const v=(Math.random()-.5)*a;px[i]=128+v;px[i+1]=128+v;px[i+2]=128+v;px[i+3]=255;}
+    nctx.putImageData(nd,0,0);
+    ctx.globalCompositeOperation='overlay';ctx.globalAlpha=Math.min(1,amt/120);
+    ctx.imageSmoothingEnabled=false;ctx.drawImage(nc,0,0,w,h);ctx.imageSmoothingEnabled=true;
+    ctx.globalCompositeOperation='source-over';ctx.globalAlpha=1;
+  }
+
+  function rrect(ctx, x, y, w, h, r) {
+    r = Math.min(r, w/2, h/2);
+    ctx.beginPath();
+    ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);
+    ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();
+  }
+
+  function formatDate(lang) {
+    const n = new Date();
+    const Y=n.getFullYear(), M=String(n.getMonth()+1).padStart(2,'0'),
+          D=String(n.getDate()).padStart(2,'0'), h=String(n.getHours()).padStart(2,'0'),
+          m=String(n.getMinutes()).padStart(2,'0');
+    switch(lang) {
+      case 'ja': return Y+'年'+M+'月'+D+'日 '+h+':'+m;
+      case 'zh': return Y+'年'+M+'月'+D+'日 '+h+':'+m;
+      case 'ko': return Y+'.'+M+'.'+D+' '+h+':'+m;
+      case 'de': return D+'.'+M+'.'+Y+' '+h+':'+m;
+      case 'fr': return D+'/'+M+'/'+Y+' '+h+':'+m;
+      case 'iso': return Y+'-'+M+'-'+D+' '+h+':'+m;
+      default: return Y+'.'+M+'.'+D+' '+h+':'+m;
+    }
+  }
+
+  function drawDateStamp(ctx, w, h, fx) {
+    const pos = fx.dateStampPos || 'bottom-right';
+    const color = fx.dateStampColor || '#ff6e46';
+    const style = fx.dateStampStyle || 'canon';
+    const lang = fx.dateStampLang || 'en';
+    const showCam = fx.dateStampShowCamera || false;
+    const camName = fx.dateStampCamera || 'Lab Photo';
+    const ds = formatDate(lang);
+    const mg = Math.max(12, Math.round(w * 0.02));
+    let font, fontSize, alpha, shadowBlur, shadowAlpha, line2, line3;
+    switch(style) {
+      case 'canon': font='"Space Grotesk",sans-serif'; fontSize=Math.round(w*0.016); alpha=0.85; shadowBlur=0; shadowAlpha=0; line2=null; line3=null; break;
+      case 'nikon': font='"Space Grotesk",sans-serif'; fontSize=Math.round(w*0.015); alpha=0.8; shadowBlur=0; shadowAlpha=0; line2=null; line3=null; break;
+      case 'sony': font='"DM Sans",sans-serif'; fontSize=Math.round(w*0.014); alpha=0.7; shadowBlur=2; shadowAlpha=0.5; line2=null; line3=null; break;
+      case 'fuji': font='"Space Grotesk",sans-serif'; fontSize=Math.round(w*0.015); alpha=0.8; shadowBlur=0; shadowAlpha=0; line2=null; line3=null; break;
+      case 'film': font='"Courier New",monospace'; fontSize=Math.round(w*0.017); alpha=0.9; shadowBlur=0; shadowAlpha=0; line2=null; line3=null; break;
+      case 'camera': font='"Space Grotesk",monospace'; fontSize=Math.round(w*0.013); alpha=0.75; shadowBlur=1; shadowAlpha=0.4;
+        line2='f/2.8  1/125s  ISO 400'; line3=showCam ? camName : null; break;
+      default: font='"DM Sans",sans-serif'; fontSize=Math.round(w*0.015); alpha=0.8; shadowBlur=0; shadowAlpha=0; line2=null; line3=null;
+    }
+    ctx.save();
+    ctx.font = '600 '+fontSize+'px '+font;
+    ctx.fillStyle = color;
+    ctx.globalAlpha = alpha;
+    if (shadowBlur > 0) { ctx.shadowColor = 'rgba(0,0,0,'+shadowAlpha+')'; ctx.shadowBlur = shadowBlur; }
+    ctx.textBaseline = 'top';
+    const lines = [ds];
+    if (line2) lines.push(line2);
+    if (line3) lines.push(line3);
+    const lh = fontSize * 1.5;
+    const totalH = lines.length * lh;
+    let x, y;
+    const tw = ctx.measureText(ds).width;
+    switch(pos) {
+      case 'top-left': x=mg; y=mg; break;
+      case 'top-right': x=w-mg-tw; y=mg; break;
+      case 'bottom-left': x=mg; y=h-mg-totalH; break;
+      default: x=w-mg-tw; y=h-mg-totalH;
+    }
+    lines.forEach((ln, i) => {
+      if (pos === 'top-right' || pos === 'bottom-right') {
+        ctx.textAlign = 'right';
+        ctx.fillText(ln, x + tw, y + i * lh);
+      } else {
+        ctx.textAlign = 'left';
+        ctx.fillText(ln, x, y + i * lh);
+      }
+    });
+    ctx.restore();
+  }
+
+  function drawColorShift(ctx, w, h, amount) {
+    if (amount < 1) return;
+    const id = ctx.getImageData(0, 0, w, h);
+    const d = id.data;
+    const off = Math.round(amount);
+    const cp = new Uint8ClampedArray(d);
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const i = (y * w + x) * 4;
+        const rx = Math.min(w - 1, x + off);
+        d[i] = cp[(y * w + rx) * 4];
+        const bx = Math.max(0, x - off);
+        d[i + 2] = cp[(y * w + bx) * 4 + 2];
+      }
+    }
+    ctx.putImageData(id, 0, 0);
+  }
+
+  function drawFrame(ctx, w, h, type) {
+    if (!type || type === 'none') return;
+    switch(type) {
+      case 'polaroid': drawPolaroidFrame(ctx, w, h); break;
+      case 'white': drawWhiteMatteFrame(ctx, w, h); break;
+      case 'black': drawBlackMountFrame(ctx, w, h); break;
+      case 'film-strip': drawFilmStripFrame(ctx, w, h); break;
+      case 'dark-slide': drawDarkSlideFrame(ctx, w, h); break;
+      case 'vintage': drawVintageFrame(ctx, w, h); break;
+      case 'instax': drawInstaxFrame(ctx, w, h); break;
+    }
+  }
+
+  function drawPolaroidFrame(ctx, w, h) {
+    const side = Math.round(w * 0.05);
+    const top = Math.round(w * 0.04);
+    const bot = Math.round(w * 0.16);
+    ctx.fillStyle = '#f4efe6';
+    ctx.fillRect(0, 0, w, top);
+    ctx.fillRect(0, h - bot, w, bot);
+    ctx.fillRect(0, 0, side, h);
+    ctx.fillRect(w - side, 0, side, h);
+    const bg = ctx.createLinearGradient(0, h - bot, 0, h);
+    bg.addColorStop(0, 'rgba(0,0,0,0)'); bg.addColorStop(1, 'rgba(0,0,0,0.04)');
+    ctx.fillStyle = bg; ctx.fillRect(0, h - bot, w, bot);
+    let g = ctx.createLinearGradient(side, top, side, top + Math.max(6, w*0.01));
+    g.addColorStop(0, 'rgba(0,0,0,0.18)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g; ctx.fillRect(side, top, w - 2*side, Math.max(6, w*0.01));
+    g = ctx.createLinearGradient(side, top, side + Math.max(6, w*0.008), top);
+    g.addColorStop(0, 'rgba(0,0,0,0.12)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g; ctx.fillRect(side, top, Math.max(6, w*0.008), h - top - bot);
+    g = ctx.createLinearGradient(w - side, top, w - side - Math.max(6, w*0.008), top);
+    g.addColorStop(0, 'rgba(0,0,0,0.12)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g; ctx.fillRect(w - side - Math.max(6, w*0.008), top, Math.max(6, w*0.008), h - top - bot);
+    g = ctx.createLinearGradient(side, h - bot, side, h - bot - Math.max(6, w*0.01));
+    g.addColorStop(0, 'rgba(0,0,0,0.08)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g; ctx.fillRect(side, h - bot - Math.max(6, w*0.01), w - 2*side, Math.max(6, w*0.01));
+    ctx.font = '500 '+Math.round(w*0.02)+'px "Space Grotesk", sans-serif';
+    ctx.fillStyle = 'rgba(180,160,140,0.25)';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('POLAROID', w/2, h - bot/2);
+    ctx.textAlign = 'left';
+  }
+
+  function drawWhiteMatteFrame(ctx, w, h) {
+    const b = Math.round(w * 0.05);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, w, b); ctx.fillRect(0, h-b, w, b);
+    ctx.fillRect(0, 0, b, h); ctx.fillRect(w-b, 0, b, h);
+    const s = Math.max(5, w*0.008);
+    let g = ctx.createLinearGradient(b, b, b, b+s);
+    g.addColorStop(0,'rgba(0,0,0,0.15)'); g.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=g; ctx.fillRect(b,b,w-2*b,s);
+    g = ctx.createLinearGradient(b,b,b+s,b);
+    g.addColorStop(0,'rgba(0,0,0,0.1)'); g.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=g; ctx.fillRect(b,b,s,h-2*b);
+    g = ctx.createLinearGradient(w-b,b,w-b-s,b);
+    g.addColorStop(0,'rgba(0,0,0,0.1)'); g.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=g; ctx.fillRect(w-b-s,b,s,h-2*b);
+    g = ctx.createLinearGradient(b,h-b,b,h-b-s);
+    g.addColorStop(0,'rgba(0,0,0,0.15)'); g.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=g; ctx.fillRect(b,h-b-s,w-2*b,s);
+    ctx.strokeStyle='rgba(0,0,0,0.06)'; ctx.lineWidth=1;
+    ctx.strokeRect(0.5,0.5,w-1,h-1);
+  }
+
+  function drawBlackMountFrame(ctx, w, h) {
+    const b = Math.round(w * 0.035);
+    ctx.fillStyle = '#111111';
+    ctx.fillRect(0,0,w,b); ctx.fillRect(0,h-b,w,b);
+    ctx.fillRect(0,0,b,h); ctx.fillRect(w-b,0,b,h);
+    let g = ctx.createLinearGradient(0,0,0,b);
+    g.addColorStop(0,'rgba(255,255,255,0.08)'); g.addColorStop(1,'rgba(255,255,255,0)');
+    ctx.fillStyle=g; ctx.fillRect(0,0,w,b);
+    g = ctx.createLinearGradient(0,0,b,0);
+    g.addColorStop(0,'rgba(255,255,255,0.06)'); g.addColorStop(1,'rgba(255,255,255,0)');
+    ctx.fillStyle=g; ctx.fillRect(0,0,b,h);
+    g = ctx.createLinearGradient(0,h-b,0,h);
+    g.addColorStop(0,'rgba(0,0,0,0)'); g.addColorStop(1,'rgba(0,0,0,0.3)');
+    ctx.fillStyle=g; ctx.fillRect(0,h-b,w,b);
+    g = ctx.createLinearGradient(w-b,0,w,0);
+    g.addColorStop(0,'rgba(0,0,0,0)'); g.addColorStop(1,'rgba(0,0,0,0.3)');
+    ctx.fillStyle=g; ctx.fillRect(w-b,0,b,h);
+    ctx.strokeStyle='rgba(160,160,160,0.15)'; ctx.lineWidth=1;
+    ctx.strokeRect(b-0.5, b-0.5, w-2*b+1, h-2*b+1);
+    const s = Math.max(4, w*0.006);
+    g = ctx.createLinearGradient(b,b,b,b+s);
+    g.addColorStop(0,'rgba(0,0,0,0.3)'); g.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=g; ctx.fillRect(b,b,w-2*b,s);
+    g = ctx.createLinearGradient(b,b,b+s,b);
+    g.addColorStop(0,'rgba(0,0,0,0.2)'); g.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=g; ctx.fillRect(b,b,s,h-2*b);
+  }
+
+  function drawFilmStripFrame(ctx, w, h) {
+    const bh = Math.round(Math.max(h*0.065, 20));
+    const holeW = Math.round(Math.max(h*0.022, 8));
+    const holeH = Math.round(Math.max(h*0.032, 12));
+    const holeR = Math.round(holeH * 0.3);
+    const spacing = Math.round(holeW * 2.6);
+    const margin = Math.round(holeW * 0.8);
+    ctx.fillStyle = '#1a1a1a';
+    ctx.fillRect(0, 0, w, bh);
+    ctx.fillRect(0, h - bh, w, bh);
+    ctx.fillStyle = 'rgba(40,40,40,0.3)';
+    ctx.fillRect(0, 0, w, 1); ctx.fillRect(0, bh-1, w, 1);
+    ctx.fillRect(0, h-bh, w, 1); ctx.fillRect(0, h-1, w, 1);
+    ctx.fillStyle = '#2a2a2a';
+    for (let x = margin; x < w - margin; x += spacing) {
+      rrect(ctx, x, (bh - holeH)/2, holeW, holeH, holeR); ctx.fill();
+      rrect(ctx, x, h - bh + (bh - holeH)/2, holeW, holeH, holeR); ctx.fill();
+    }
+    ctx.fillStyle = 'rgba(60,60,60,0.5)';
+    for (let x = margin; x < w - margin; x += spacing) {
+      ctx.fillRect(x+1, (bh - holeH)/2+1, holeW-2, 1);
+      ctx.fillRect(x+1, h - bh + (bh - holeH)/2+1, holeW-2, 1);
+    }
+    ctx.font = '700 '+Math.round(Math.max(h*0.018, 9))+'px "Space Grotesk", monospace';
+    ctx.fillStyle = 'rgba(255,120,30,0.5)';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillText('24A', Math.round(margin*0.4), bh - 3);
+    ctx.textAlign = 'right';
+    ctx.fillText('36X', w - Math.round(margin*0.4), h - 4);
+    ctx.textAlign = 'left';
+    ctx.font = '600 '+Math.round(Math.max(h*0.014, 7))+'px "Space Grotesk", sans-serif';
+    ctx.fillStyle = 'rgba(255,120,30,0.2)';
+    ctx.textAlign = 'right';
+    ctx.fillText('KODAK SAFETY FILM 5063', w - Math.round(margin*0.4), bh - 3);
+    ctx.textAlign = 'left';
+    let g = ctx.createLinearGradient(0, bh, 0, bh + 4);
+    g.addColorStop(0,'rgba(0,0,0,0.2)'); g.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle = g; ctx.fillRect(0, bh, w, 4);
+    g = ctx.createLinearGradient(0, h - bh, 0, h - bh - 4);
+    g.addColorStop(0,'rgba(0,0,0,0.2)'); g.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle = g; ctx.fillRect(0, h - bh - 4, w, 4);
+  }
+
+  function drawDarkSlideFrame(ctx, w, h) {
+    const b = Math.round(w * 0.04);
+    const inner = Math.round(w * 0.008);
+    ctx.fillStyle = '#2c2c2c';
+    ctx.fillRect(0,0,w,b); ctx.fillRect(0,h-b,w,b);
+    ctx.fillRect(0,0,b,h); ctx.fillRect(w-b,0,b,h);
+    ctx.fillStyle = '#888888';
+    ctx.fillRect(b, b, w-2*b, inner);
+    ctx.fillRect(b, h-b-inner, w-2*b, inner);
+    ctx.fillRect(b, b, inner, h-2*b);
+    ctx.fillRect(w-b-inner, b, inner, h-2*b);
+    let g = ctx.createLinearGradient(b, b, b, b+inner);
+    g.addColorStop(0,'rgba(255,255,255,0.2)'); g.addColorStop(0.5,'rgba(255,255,255,0)'); g.addColorStop(1,'rgba(0,0,0,0.2)');
+    ctx.fillStyle = g; ctx.fillRect(b, b, w-2*b, inner);
+    const lblH = Math.round(b * 0.6);
+    ctx.fillStyle = '#222222';
+    ctx.fillRect(b + inner, h - b + inner, w - 2*(b+inner), lblH);
+    ctx.font = '500 '+Math.round(w*0.012)+'px "Space Grotesk", sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,0.3)';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('120 FILM', w/2, h - b + inner + lblH/2);
+    ctx.textAlign = 'left';
+    const ix = b+inner, iy = b+inner, iw = w-2*(b+inner), ih = h-2*(b+inner)-lblH;
+    g = ctx.createLinearGradient(ix, iy, ix, iy+3);
+    g.addColorStop(0,'rgba(0,0,0,0.25)'); g.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle = g; ctx.fillRect(ix, iy, iw, 3);
+  }
+
+  function drawVintageFrame(ctx, w, h) {
+    const b = Math.round(w * 0.045);
+    ctx.fillStyle = '#d8ceb8';
+    ctx.fillRect(0,0,w,b); ctx.fillRect(0,h-b,w,b);
+    ctx.fillRect(0,0,b,h); ctx.fillRect(w-b,0,b,h);
+    let g = ctx.createLinearGradient(0,0,w,h);
+    g.addColorStop(0,'rgba(180,140,90,0.1)'); g.addColorStop(1,'rgba(140,100,60,0.1)');
+    ctx.fillStyle = g; ctx.fillRect(0,0,w,b); ctx.fillRect(0,h-b,w,b);
+    ctx.fillRect(0,0,b,h); ctx.fillRect(w-b,0,b,h);
+    ctx.fillStyle = 'rgba(120,100,70,0.15)';
+    ctx.fillRect(b-2, b-2, w-2*b+4, 2);
+    ctx.fillRect(b-2, h-b, w-2*b+4, 2);
+    ctx.fillRect(b-2, b-2, 2, h-2*b+4);
+    ctx.fillRect(w-b, b-2, 2, h-2*b+4);
+    const s = Math.max(5, w*0.008);
+    g = ctx.createLinearGradient(b,b,b,b+s);
+    g.addColorStop(0,'rgba(0,0,0,0.2)'); g.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=g; ctx.fillRect(b,b,w-2*b,s);
+    g = ctx.createLinearGradient(b,b,b+s,b);
+    g.addColorStop(0,'rgba(0,0,0,0.15)'); g.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=g; ctx.fillRect(b,b,s,h-2*b);
+    g = ctx.createLinearGradient(w-b,b,w-b-s,b);
+    g.addColorStop(0,'rgba(0,0,0,0.15)'); g.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=g; ctx.fillRect(w-b-s,b,s,h-2*b);
+    g = ctx.createLinearGradient(b,h-b,b,h-b-s);
+    g.addColorStop(0,'rgba(0,0,0,0.2)'); g.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=g; ctx.fillRect(b,h-b-s,w-2*b,s);
+    const cl = Math.round(b * 0.5);
+    ctx.strokeStyle = 'rgba(100,80,50,0.2)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(b+4, b+cl); ctx.lineTo(b+4, b+4); ctx.lineTo(b+cl, b+4); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(w-b-cl, b+4); ctx.lineTo(w-b-4, b+4); ctx.lineTo(w-b-4, b+cl); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(b+4, h-b-cl); ctx.lineTo(b+4, h-b-4); ctx.lineTo(b+cl, h-b-4); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(w-b-cl, h-b-4); ctx.lineTo(w-b-4, h-b-4); ctx.lineTo(w-b-4, h-b-cl); ctx.stroke();
+    ctx.fillStyle = 'rgba(80,60,40,0.04)';
+    for (let i = 0; i < 60; i++) {
+      const nx = Math.random() * w, ny = Math.random() * h;
+      if (nx < b || nx > w-b || ny < b || ny > h-b) ctx.fillRect(nx, ny, 2, 2);
+    }
+  }
+
+  function drawInstaxFrame(ctx, w, h) {
+    const side = Math.round(w * 0.06);
+    const top = Math.round(w * 0.05);
+    const bot = Math.round(w * 0.12);
+    ctx.fillStyle = '#fafafa';
+    ctx.fillRect(0,0,w,top); ctx.fillRect(0,h-bot,w,bot);
+    ctx.fillRect(0,0,side,h); ctx.fillRect(w-side,0,side,h);
+    let g = ctx.createLinearGradient(0,0,0,top);
+    g.addColorStop(0,'rgba(0,0,0,0.03)'); g.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle = g; ctx.fillRect(0,0,w,top);
+    g = ctx.createLinearGradient(0,h-bot,0,h);
+    g.addColorStop(0,'rgba(0,0,0,0)'); g.addColorStop(1,'rgba(0,0,0,0.02)');
+    ctx.fillStyle = g; ctx.fillRect(0,h-bot,w,bot);
+    const s = Math.max(4, w*0.006);
+    g = ctx.createLinearGradient(side,top,side,top+s);
+    g.addColorStop(0,'rgba(0,0,0,0.12)'); g.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=g; ctx.fillRect(side,top,w-2*side,s);
+    g = ctx.createLinearGradient(side,top,side+s,top);
+    g.addColorStop(0,'rgba(0,0,0,0.08)'); g.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=g; ctx.fillRect(side,top,s,h-top-bot);
+    g = ctx.createLinearGradient(w-side,top,w-side-s,top);
+    g.addColorStop(0,'rgba(0,0,0,0.08)'); g.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=g; ctx.fillRect(w-side-s,top,s,h-top-bot);
+    ctx.font = '600 '+Math.round(w*0.018)+'px "Space Grotesk", sans-serif';
+    ctx.fillStyle = 'rgba(0,0,0,0.08)';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('instax', w/2, h - bot/2);
+    ctx.textAlign = 'left';
+    ctx.strokeStyle = 'rgba(0,0,0,0.04)'; ctx.lineWidth = 0.5;
+    ctx.strokeRect(side-0.5, top-0.5, w-2*side+1, h-top-bot+1);
+  }
+
+  function drawTextWithSpacing(ctx, text, x, y, spacing) {
+    if (!spacing || spacing === 0) { ctx.fillText(text, x, y); return; }
+    let cx = x;
+    for (let i = 0; i < text.length; i++) {
+      ctx.fillText(text[i], cx, y);
+      cx += ctx.measureText(text[i]).width + spacing;
+    }
+  }
+  function strokeTextWithSpacing(ctx, text, x, y, spacing) {
+    if (!spacing || spacing === 0) { ctx.strokeText(text, x, y); return; }
+    let cx = x;
+    for (let i = 0; i < text.length; i++) {
+      ctx.strokeText(text[i], cx, y);
+      cx += ctx.measureText(text[i]).width + spacing;
+    }
+  }
+
+  function drawTexts(ctx, w, h, texts) {
+    texts.forEach(t => {
+      ctx.save();
+      ctx.font = (t.fontWeight || '600') + ' ' + t.fontSize + 'px "' + t.fontFamily + '", sans-serif';
+      ctx.textBaseline = 'top';
+      ctx.globalAlpha = (t.opacity !== undefined ? t.opacity : 100) / 100;
+      if (t.textBlur > 0) ctx.filter = 'blur(' + t.textBlur + 'px)';
+      if (t.glow) {
+        ctx.shadowColor = t.glowColor || '#ffffff';
+        ctx.shadowBlur = t.glowIntensity || 20;
+      } else {
+        ctx.shadowColor = 'rgba(0,0,0,0.5)';
+        ctx.shadowBlur = 4; ctx.shadowOffsetX = 1; ctx.shadowOffsetY = 1;
+      }
+      if (t.outline) {
+        ctx.strokeStyle = t.outlineColor || '#000000';
+        ctx.lineWidth = t.outlineWidth || 2;
+        ctx.lineJoin = 'round';
+        strokeTextWithSpacing(ctx, t.text, t.x, t.y, t.letterSpacing || 0);
+      }
+      ctx.fillStyle = t.color;
+      drawTextWithSpacing(ctx, t.text, t.x, t.y, t.letterSpacing || 0);
+      ctx.restore();
+    });
+  }
+
+  function renderOriginal(canvas, img, maxDim) {
+    if (!img || !img.naturalWidth) return;
+    const ctx = canvas.getContext('2d');
+    let w, h;
+    if (maxDim > 0) {
+      const r = Math.min(maxDim / img.naturalWidth, maxDim / img.naturalHeight, 1);
+      w = Math.round(img.naturalWidth * r); h = Math.round(img.naturalHeight * r);
+    } else { w = img.naturalWidth; h = img.naturalHeight; }
+    canvas.width = w; canvas.height = h;
+    ctx.filter = 'none';
+    ctx.drawImage(img, 0, 0, w, h);
+  }
+
+  function compositePreview(canvas, baseBuf, strokeBuf, fx, texts) {
+    const w = canvas.width, h = canvas.height;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, w, h);
+    ctx.drawImage(baseBuf, 0, 0);
+    if (strokeBuf) ctx.drawImage(strokeBuf, 0, 0);
+    if (fx.dateStamp) drawDateStamp(ctx, w, h, fx);
+    if (fx.colorShift > 0) drawColorShift(ctx, w, h, fx.colorShift);
+    if (fx.frame && fx.frame !== 'none') drawFrame(ctx, w, h, fx.frame);
+    if (texts.length) drawTexts(ctx, w, h, texts);
+  }
+
+  function renderExport(img, settings, fx, texts, strokeBufFullRes) {
+    const w = img.naturalWidth, h = img.naturalHeight;
+    const c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    renderToCanvas(c, img, settings, 0);
+    if (settings.sharpness > 0) {
+      const tmp = document.createElement('canvas'); tmp.width = w; tmp.height = h;
+      const tc = tmp.getContext('2d');
+      tc.filter = 'blur(' + Math.max(0.5, settings.sharpness / 50) + 'px)';
+      tc.drawImage(c, 0, 0);
+      const ctx = c.getContext('2d');
+      const orig = ctx.getImageData(0, 0, w, h);
+      const blur = tc.getImageData(0, 0, w, h);
+      const od = orig.data, bd = blur.data, sc = settings.sharpness / 100 * 2;
+      for (let i = 0; i < od.length; i += 4) {
+        od[i]   = Math.max(0, Math.min(255, od[i]   + sc * (od[i]   - bd[i])));
+        od[i+1] = Math.max(0, Math.min(255, od[i+1] + sc * (od[i+1] - bd[i+1])));
+        od[i+2] = Math.max(0, Math.min(255, od[i+2] + sc * (od[i+2] - bd[i+2])));
+      }
+      ctx.putImageData(orig, 0, 0);
+    }
+    if (strokeBufFullRes) c.getContext('2d').drawImage(strokeBufFullRes, 0, 0);
+    if (fx.dateStamp) drawDateStamp(c.getContext('2d'), w, h, fx);
+    if (fx.colorShift > 0) drawColorShift(c.getContext('2d'), w, h, fx.colorShift);
+    if (fx.frame && fx.frame !== 'none') drawFrame(c.getContext('2d'), w, h, fx.frame);
+    if (texts.length) drawTexts(c.getContext('2d'), w, h, texts.map(t => ({
+      ...t, x: t.x / MAX_PREVIEW * w, y: t.y / MAX_PREVIEW * h,
+      fontSize: t.fontSize / MAX_PREVIEW * w,
+      textBlur: (t.textBlur || 0) / MAX_PREVIEW * w,
+      glowIntensity: (t.glowIntensity || 0) / MAX_PREVIEW * w,
+      outlineWidth: (t.outlineWidth || 0) / MAX_PREVIEW * w,
+      letterSpacing: (t.letterSpacing || 0) / MAX_PREVIEW * w
+    })));
+    return c;
+  }
+
+  PhotoLab.MAX_PREVIEW = MAX_PREVIEW;
+  PhotoLab.renderToCanvas = renderToCanvas;
+  PhotoLab.renderOriginal = renderOriginal;
+  PhotoLab.compositePreview = compositePreview;
+  PhotoLab.renderExport = renderExport;
+  PhotoLab._drawGrain = drawGrain;
+  PhotoLab._drawVignette = drawVignette;
+})();

@@ -1,1 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Lab — Photo Editor</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
 
+  <input type="file" id="fileInput" accept="image/*" hidden>
+
+  <!-- Upload Screen -->
+  <div id="uploadScreen">
+    <div class="upload-zone" id="uploadZone">
+      <i class="fa-regular fa-image"></i>
+      <h2>Upload a photo</h2>
+      <p>Drop your image here or <span id="browseBtn">browse files</span></p>
+      <p class="upload-formats">JPG, PNG, WebP supported</p>
+    </div>
+    <div class="upload-divider"><span>or</span></div>
+    <button class="btn camera-launch-btn" id="takePhotoBtn">
+      <i class="fa-solid fa-camera"></i>
+      <span>Take a Photo</span>
+    </button>
+    <div class="upload-hint">or press <kbd>Ctrl</kbd> + <kbd>V</kbd> to paste from clipboard</div>
+  </div>
+
+  <!-- Editor Screen -->
+  <div id="editorScreen">
+    <header class="editor-header">
+      <div class="header-left">
+        <div class="logo">Lab</div>
+      </div>
+      <div class="header-actions">
+        <span class="size-badge" id="sizeBadge" style="display:none"></span>
+        <button class="btn icon-btn" id="cameraBtn" title="Take Photo"><i class="fa-solid fa-camera"></i></button>
+        <button class="btn icon-btn" id="settingsBtn" title="Settings"><i class="fa-solid fa-gear"></i></button>
+        <button class="btn icon-btn" id="nightBtn" title="Toggle light/dark mode"><i class="fa-solid fa-moon"></i></button>
+        <div class="header-sep"></div>
+        <button class="btn icon-btn" id="zoomOutBtn" title="Zoom out"><i class="fa-solid fa-minus"></i></button>
+        <span class="zoom-label" id="zoomLabel">100%</span>
+        <button class="btn icon-btn" id="zoomInBtn" title="Zoom in"><i class="fa-solid fa-plus"></i></button>
+        <button class="btn icon-btn" id="zoomFitBtn" title="Fit to view"><i class="fa-solid fa-expand"></i></button>
+        <div class="header-sep"></div>
+        <button class="btn icon-btn btn-compare" id="compareBtn" title="Hold to compare"><i class="fa-solid fa-eye"></i></button>
+        <button class="btn icon-btn" id="undoBtn" title="Undo brush stroke"><i class="fa-solid fa-rotate-left"></i></button>
+        <button class="btn icon-btn" id="newBtn" title="New image"><i class="fa-solid fa-folder-open"></i></button>
+        <button class="btn icon-btn" id="resetBtn" title="Reset all"><i class="fa-solid fa-arrows-rotate"></i></button>
+        <button class="btn btn-accent" id="downloadBtn"><i class="fa-solid fa-download"></i><span class="btn-text">Download</span></button>
+      </div>
+    </header>
+
+    <div class="preview-area" id="previewArea">
+      <div class="image-frame" id="imageFrame">
+        <canvas id="previewCanvas"></canvas>
+      </div>
+
+      <!-- Camera Overlay -->
+      <div class="camera-overlay" id="cameraOverlay">
+        <video id="cameraVideo" autoplay playsinline muted></video>
+        <div class="camera-crop-inner" id="cameraCropInner"></div>
+        <div class="camera-flash" id="cameraFlash"></div>
+        <div class="camera-top-controls">
+          <button class="cam-btn" id="cameraCloseBtn" title="Close"><i class="fa-solid fa-xmark"></i></button>
+          <div class="camera-size-badge" id="cameraSizeBadge"></div>
+          <button class="cam-btn" id="cameraSwitchBtn" title="Switch camera"><i class="fa-solid fa-camera-rotate"></i></button>
+        </div>
+        <div class="camera-bottom-controls">
+          <div class="camera-ratio-bar" id="cameraRatioBar"></div>
+          <button class="shutter-btn" id="shutterBtn"><span class="shutter-inner"></span></button>
+          <div style="width:80px"></div>
+        </div>
+      </div>
+
+      <div class="compare-label" id="compareLabel">Original</div>
+    </div>
+
+    <div class="bottom-panel">
+      <div class="tab-bar">
+        <button class="tab-btn active" data-tab="presets">Presets</button>
+        <button class="tab-btn" data-tab="adjust">Adjust</button>
+        <button class="tab-btn" data-tab="tools">Tools</button>
+        <button class="tab-btn" data-tab="text">Text</button>
+        <button class="tab-btn" data-tab="effects">Effects</button>
+      </div>
+
+      <div class="tab-content active" id="presetsTab">
+        <div class="category-bar" id="categoryBar"></div>
+        <div class="presets-grid" id="presetsGrid"></div>
+      </div>
+
+      <div class="tab-content" id="adjustTab">
+        <div class="sliders-list" id="slidersList"></div>
+      </div>
+
+      <div class="tab-content" id="toolsTab">
+        <div class="tools-panel">
+          <div class="brush-types" id="brushTypes"></div>
+          <div class="brush-sliders">
+            <div class="slider-row"><div class="slider-label">Size</div><div class="slider-wrap"><input type="range" id="brushSize" min="5" max="150" value="40"></div><div class="slider-val" id="brushSizeVal">40</div></div>
+            <div class="slider-row"><div class="slider-label">Strength</div><div class="slider-wrap"><input type="range" id="brushStrength" min="1" max="100" value="50"></div><div class="slider-val" id="brushStrengthVal">50</div></div>
+          </div>
+          <div class="brush-options">
+            <label class="toggle-row">
+              <span class="toggle-label-text">Show brush cursor</span>
+              <label class="toggle">
+                <input type="checkbox" id="brushCursorToggle" checked>
+                <span class="slider"></span>
+              </label>
+            </label>
+          </div>
+          <div class="brush-actions">
+            <button class="btn small-btn" id="clearBrushBtn"><i class="fa-solid fa-trash-can"></i> Clear All</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="tab-content" id="textTab">
+        <div class="text-panel">
+          <div class="text-list-header"><span>Your Texts</span><button class="btn small-btn" id="addTextBtn"><i class="fa-solid fa-plus"></i> Add</button></div>
+          <div class="text-list" id="textList"></div>
+          <div class="text-props" id="textProps" style="display:none">
+            <div class="slider-row"><div class="slider-label">Content</div><div class="slider-wrap"><input type="text" id="textContent" class="text-input" placeholder="Type here..."></div></div>
+            <div class="slider-row"><div class="slider-label">Size</div><div class="slider-wrap"><input type="range" id="textSize" min="12" max="120" value="32"></div><div class="slider-val" id="textSizeVal">32</div></div>
+            <div class="slider-row"><div class="slider-label">Color</div><div class="slider-wrap"><input type="color" id="textColor" value="#ffffff" class="color-input"></div></div>
+            <div class="slider-row"><div class="slider-label">Font</div><div class="slider-wrap"><select id="textFont" class="select-input"><option value="DM Sans">Sans</option><option value="Georgia">Serif</option><option value="Courier New">Mono</option><option value="cursive">Handwriting</option><option value="Space Grotesk">Grotesk</option></select></div></div>
+            <div class="slider-row"><div class="slider-label">Opacity</div><div class="slider-wrap"><input type="range" id="textOpacity" min="0" max="100" value="100"></div><div class="slider-val" id="textOpacityVal">100%</div></div>
+            <div class="slider-row"><div class="slider-label">Blur</div><div class="slider-wrap"><input type="range" id="textBlur" min="0" max="20" value="0" step="0.5"></div><div class="slider-val" id="textBlurVal">0</div></div>
+            <div class="text-option-group">
+              <div class="effect-header"><span class="effect-label" style="font-size:12px">Glow</span><label class="toggle"><input type="checkbox" id="textGlow"><span class="slider"></span></label></div>
+              <div class="text-option-sub" id="textGlowSub" style="display:none">
+                <div class="slider-row"><div class="slider-label">Color</div><div class="slider-wrap"><input type="color" id="textGlowColor" value="#ffffff" class="color-input"></div></div>
+                <div class="slider-row"><div class="slider-label">Intensity</div><div class="slider-wrap"><input type="range" id="textGlowIntensity" min="1" max="50" value="20"></div><div class="slider-val" id="textGlowIntensityVal">20</div></div>
+              </div>
+            </div>
+            <div class="text-option-group">
+              <div class="effect-header"><span class="effect-label" style="font-size:12px">Outline</span><label class="toggle"><input type="checkbox" id="textOutline"><span class="slider"></span></label></div>
+              <div class="text-option-sub" id="textOutlineSub" style="display:none">
+                <div class="slider-row"><div class="slider-label">Color</div><div class="slider-wrap"><input type="color" id="textOutlineColor" value="#000000" class="color-input"></div></div>
+                <div class="slider-row"><div class="slider-label">Width</div><div class="slider-wrap"><input type="range" id="textOutlineWidth" min="1" max="10" value="2"></div><div class="slider-val" id="textOutlineWidthVal">2</div></div>
+              </div>
+            </div>
+            <div class="slider-row"><div class="slider-label">Spacing</div><div class="slider-wrap"><input type="range" id="textLetterSpacing" min="-5" max="20" value="0"></div><div class="slider-val" id="textLetterSpacingVal">0</div></div>
+            <button class="btn small-btn danger-btn" id="deleteTextBtn"><i class="fa-solid fa-trash-can"></i> Delete</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="tab-content" id="effectsTab">
+        <div class="effects-panel" id="effectsPanel"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings Modal -->
+  <div class="settings-modal" id="settingsModal">
+    <div class="settings-overlay" id="settingsOverlay"></div>
+    <div class="settings-content">
+      <div class="settings-header">
+        <h3>Settings</h3>
+        <button class="btn icon-btn" id="closeSettings"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="settings-body">
+        <div class="settings-section">
+          <h4>Keyboard Shortcuts</h4>
+          <div class="shortcut-list" id="shortcutList"></div>
+          <p class="shortcut-hint">Click a shortcut, then press the new key combination to rebind</p>
+        </div>
+        <div class="settings-section">
+          <h4>General</h4>
+          <div class="setting-row">
+            <span>Show brush cursor</span>
+            <label class="toggle">
+              <input type="checkbox" id="settingBrushCursor" checked>
+              <span class="slider"></span>
+            </label>
+          </div>
+          <div class="setting-row">
+            <span>Auto-fit image on load</span>
+            <label class="toggle">
+              <input type="checkbox" id="settingAutoFit" checked>
+              <span class="slider"></span>
+            </label>
+          </div>
+          <div class="setting-row">
+            <span>Smooth zoom animation</span>
+            <label class="toggle">
+              <input type="checkbox" id="settingSmoothZoom" checked>
+              <span class="slider"></span>
+            </label>
+          </div>
+        </div>
+        <div class="settings-section">
+          <h4>Export</h4>
+          <div class="setting-row">
+            <span>Format</span>
+            <select class="effect-select" id="settingExportFormat" style="width:auto">
+              <option value="png">PNG</option>
+              <option value="jpeg">JPEG</option>
+              <option value="webp">WebP</option>
+            </select>
+          </div>
+          <div class="setting-row" id="qualityRow">
+            <span>Quality</span>
+            <div class="slider-wrap" style="max-width:140px">
+              <input type="range" id="settingExportQuality" min="10" max="100" value="92">
+            </div>
+            <div class="slider-val" id="settingExportQualityVal">92%</div>
+          </div>
+        </div>
+        <div class="settings-section">
+          <h4>About</h4>
+          <p class="about-text">Lab Photo Editor v1.3<br>Built with Canvas API</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script src="js/presets.js"></script>
+  <script src="js/renderer.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
