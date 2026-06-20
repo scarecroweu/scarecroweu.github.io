@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>Lab — Photo Editor</title>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
@@ -12,7 +12,6 @@
 
   <input type="file" id="fileInput" accept="image/*" hidden>
 
-  <!-- Upload Screen -->
   <div id="uploadScreen">
     <div class="upload-zone" id="uploadZone">
       <i class="fa-regular fa-image"></i>
@@ -25,10 +24,10 @@
       <i class="fa-solid fa-camera"></i>
       <span>Take a Photo</span>
     </button>
+    <p class="upload-camera-hint" id="cameraHint" style="display:none">Camera requires HTTPS — use a secure connection or localhost</p>
     <div class="upload-hint">or press <kbd>Ctrl</kbd> + <kbd>V</kbd> to paste from clipboard</div>
   </div>
 
-  <!-- Editor Screen -->
   <div id="editorScreen">
     <header class="editor-header">
       <div class="header-left">
@@ -57,8 +56,6 @@
       <div class="image-frame" id="imageFrame">
         <canvas id="previewCanvas"></canvas>
       </div>
-
-      <!-- Camera Overlay -->
       <div class="camera-overlay" id="cameraOverlay">
         <video id="cameraVideo" autoplay playsinline muted></video>
         <div class="camera-crop-inner" id="cameraCropInner"></div>
@@ -74,28 +71,24 @@
           <div style="width:80px"></div>
         </div>
       </div>
-
       <div class="compare-label" id="compareLabel">Original</div>
     </div>
 
     <div class="bottom-panel">
       <div class="tab-bar">
-        <button class="tab-btn active" data-tab="presets">Presets</button>
-        <button class="tab-btn" data-tab="adjust">Adjust</button>
-        <button class="tab-btn" data-tab="tools">Tools</button>
-        <button class="tab-btn" data-tab="text">Text</button>
-        <button class="tab-btn" data-tab="effects">Effects</button>
+        <button class="tab-btn active" data-tab="presets"><i class="fa-solid fa-swatchbook"></i> <span class="tab-text">Presets</span></button>
+        <button class="tab-btn" data-tab="adjust"><i class="fa-solid fa-sliders"></i> <span class="tab-text">Adjust</span></button>
+        <button class="tab-btn" data-tab="tools"><i class="fa-solid fa-paintbrush"></i> <span class="tab-text">Tools</span></button>
+        <button class="tab-btn" data-tab="text"><i class="fa-solid fa-font"></i> <span class="tab-text">Text</span></button>
+        <button class="tab-btn" data-tab="effects"><i class="fa-solid fa-wand-magic-sparkles"></i> <span class="tab-text">Effects</span></button>
       </div>
-
       <div class="tab-content active" id="presetsTab">
         <div class="category-bar" id="categoryBar"></div>
         <div class="presets-grid" id="presetsGrid"></div>
       </div>
-
       <div class="tab-content" id="adjustTab">
         <div class="sliders-list" id="slidersList"></div>
       </div>
-
       <div class="tab-content" id="toolsTab">
         <div class="tools-panel">
           <div class="brush-types" id="brushTypes"></div>
@@ -104,20 +97,11 @@
             <div class="slider-row"><div class="slider-label">Strength</div><div class="slider-wrap"><input type="range" id="brushStrength" min="1" max="100" value="50"></div><div class="slider-val" id="brushStrengthVal">50</div></div>
           </div>
           <div class="brush-options">
-            <label class="toggle-row">
-              <span class="toggle-label-text">Show brush cursor</span>
-              <label class="toggle">
-                <input type="checkbox" id="brushCursorToggle" checked>
-                <span class="slider"></span>
-              </label>
-            </label>
+            <label class="toggle-row"><span class="toggle-label-text">Show brush cursor</span><label class="toggle"><input type="checkbox" id="brushCursorToggle" checked><span class="slider"></span></label></label>
           </div>
-          <div class="brush-actions">
-            <button class="btn small-btn" id="clearBrushBtn"><i class="fa-solid fa-trash-can"></i> Clear All</button>
-          </div>
+          <div class="brush-actions"><button class="btn small-btn" id="clearBrushBtn"><i class="fa-solid fa-trash-can"></i> Clear All</button></div>
         </div>
       </div>
-
       <div class="tab-content" id="textTab">
         <div class="text-panel">
           <div class="text-list-header"><span>Your Texts</span><button class="btn small-btn" id="addTextBtn"><i class="fa-solid fa-plus"></i> Add</button></div>
@@ -148,73 +132,30 @@
           </div>
         </div>
       </div>
-
       <div class="tab-content" id="effectsTab">
         <div class="effects-panel" id="effectsPanel"></div>
       </div>
     </div>
   </div>
 
-  <!-- Settings Modal -->
   <div class="settings-modal" id="settingsModal">
     <div class="settings-overlay" id="settingsOverlay"></div>
     <div class="settings-content">
-      <div class="settings-header">
-        <h3>Settings</h3>
-        <button class="btn icon-btn" id="closeSettings"><i class="fa-solid fa-xmark"></i></button>
-      </div>
+      <div class="settings-header"><h3>Settings</h3><button class="btn icon-btn" id="closeSettings"><i class="fa-solid fa-xmark"></i></button></div>
       <div class="settings-body">
-        <div class="settings-section">
-          <h4>Keyboard Shortcuts</h4>
-          <div class="shortcut-list" id="shortcutList"></div>
-          <p class="shortcut-hint">Click a shortcut, then press the new key combination to rebind</p>
-        </div>
+        <div class="settings-section"><h4>Keyboard Shortcuts</h4><div class="shortcut-list" id="shortcutList"></div><p class="shortcut-hint">Click a shortcut, then press the new key combination to rebind</p></div>
         <div class="settings-section">
           <h4>General</h4>
-          <div class="setting-row">
-            <span>Show brush cursor</span>
-            <label class="toggle">
-              <input type="checkbox" id="settingBrushCursor" checked>
-              <span class="slider"></span>
-            </label>
-          </div>
-          <div class="setting-row">
-            <span>Auto-fit image on load</span>
-            <label class="toggle">
-              <input type="checkbox" id="settingAutoFit" checked>
-              <span class="slider"></span>
-            </label>
-          </div>
-          <div class="setting-row">
-            <span>Smooth zoom animation</span>
-            <label class="toggle">
-              <input type="checkbox" id="settingSmoothZoom" checked>
-              <span class="slider"></span>
-            </label>
-          </div>
+          <div class="setting-row"><span>Show brush cursor</span><label class="toggle"><input type="checkbox" id="settingBrushCursor" checked><span class="slider"></span></label></div>
+          <div class="setting-row"><span>Auto-fit image on load</span><label class="toggle"><input type="checkbox" id="settingAutoFit" checked><span class="slider"></span></label></div>
+          <div class="setting-row"><span>Smooth zoom animation</span><label class="toggle"><input type="checkbox" id="settingSmoothZoom" checked><span class="slider"></span></label></div>
         </div>
         <div class="settings-section">
           <h4>Export</h4>
-          <div class="setting-row">
-            <span>Format</span>
-            <select class="effect-select" id="settingExportFormat" style="width:auto">
-              <option value="png">PNG</option>
-              <option value="jpeg">JPEG</option>
-              <option value="webp">WebP</option>
-            </select>
-          </div>
-          <div class="setting-row" id="qualityRow">
-            <span>Quality</span>
-            <div class="slider-wrap" style="max-width:140px">
-              <input type="range" id="settingExportQuality" min="10" max="100" value="92">
-            </div>
-            <div class="slider-val" id="settingExportQualityVal">92%</div>
-          </div>
+          <div class="setting-row"><span>Format</span><select class="effect-select" id="settingExportFormat" style="width:auto"><option value="png">PNG</option><option value="jpeg">JPEG</option><option value="webp">WebP</option></select></div>
+          <div class="setting-row" id="qualityRow"><span>Quality</span><div class="slider-wrap" style="max-width:140px"><input type="range" id="settingExportQuality" min="10" max="100" value="92"></div><div class="slider-val" id="settingExportQualityVal">92%</div></div>
         </div>
-        <div class="settings-section">
-          <h4>About</h4>
-          <p class="about-text">Lab Photo Editor v1.3<br>Built with Canvas API</p>
-        </div>
+        <div class="settings-section"><h4>About</h4><p class="about-text">Lab Photo Editor v1.4<br>Built with Canvas API</p></div>
       </div>
     </div>
   </div>
