@@ -221,6 +221,7 @@ input[type="range"]::-moz-range-progress{height:3px;border-radius:2px;background
 
 @media(max-width:768px){
   :root{--panel-h:calc(148px + var(--safe-b));--header-h:42px}
+  @media(display-mode:standalone){:root{--panel-h:148px}}
   .editor-header{padding:0 6px}
   .header-actions{gap:2px}
   .header-sep{display:none}
