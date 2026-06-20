@@ -38,6 +38,7 @@ PhotoLab.CATEGORIES = [
   {id:'cinematic',label:'Cinematic'},{id:'vintage',label:'Vintage'},
   {id:'modern',label:'Modern'},{id:'artistic',label:'Artistic'},{id:'tonal',label:'Tonal'},
   {id:'bw',label:'B&W'},{id:'experimental',label:'Experimental'},
+  {id:'exclusive',label:'Exclusive'},
 ];
 
 PhotoLab.BRUSH_TYPES = [
@@ -157,4 +158,12 @@ PhotoLab.PRESETS = [
   p('Duotone Ember','experimental',{red:148,green:92,blue:68,saturation:48,contrast:118,temperature:28,grain:8,vignette:12,fade:6}),
   p('Duotone Ocean','experimental',{red:68,green:128,blue:138,saturation:48,contrast:118,temperature:-32,grain:8,vignette:12,fade:6}),
   p('Heat Haze','experimental',{brightness:114,contrast:86,saturation:112,temperature:38,blur:.5,fade:12,grain:5}),
+  p('Alien','exclusive',{brightness:96,contrast:128,saturation:68,temperature:-32,tint:18,green:145,blue:118,clarity:38,dehaze:22,grain:22,vignette:38,highlights:-22,shadows:18}),
+  p('Thunderstorm','exclusive',{brightness:74,contrast:148,saturation:72,temperature:-28,tint:-12,clarity:42,dehaze:18,grain:20,vignette:55,highlights:-32,shadows:-28,sharpness:32}),
+  p('Inferno','exclusive',{brightness:110,contrast:128,saturation:148,temperature:48,tint:12,red:138,green:92,clarity:22,dehaze:12,grain:14,vignette:32,highlights:-18}),
+  p('Arctic','exclusive',{brightness:128,contrast:88,saturation:52,temperature:-42,tint:-10,blue:128,clarity:18,dehaze:28,grain:8,vignette:18,fade:22,shadows:22}),
+  p('Toxic Waste','exclusive',{brightness:108,contrast:120,saturation:168,temperature:-22,tint:28,green:158,clarity:32,dehaze:12,grain:16,vignette:28,hue:82}),
+  p('Phantom','exclusive',{brightness:70,contrast:138,saturation:62,temperature:-18,tint:-20,blue:118,clarity:28,dehaze:22,grain:24,vignette:58,shadows:-32,fade:10}),
+  p('Solar Flare','exclusive',{brightness:122,contrast:108,saturation:128,temperature:52,tint:8,red:118,clarity:12,dehaze:8,grain:8,vignette:22,highlights:-28,fade:14}),
+  p('The Abyss','exclusive',{brightness:80,contrast:122,saturation:88,temperature:-38,tint:-14,blue:132,green:88,clarity:22,dehaze:32,grain:12,vignette:48,shadows:-18,fade:6}),
 ];
