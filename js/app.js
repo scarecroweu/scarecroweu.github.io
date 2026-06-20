@@ -384,3 +384,22 @@
 
   window.addEventListener('resize',()=>{if(currentImage&&!cameraActive){fitCanvasCSS();}if(cameraActive){updateCameraCrop();}});
 })();
+
+(function(){
+  var ed=document.getElementById('editorScreen');
+  var bp=document.querySelector('.bottom-panel');
+  if(!ed||!bp)return;
+  function fix(){
+    if(!ed.classList.contains('visible'))return;
+    if(window.visualViewport){
+      ed.style.height=window.visualViewport.height+'px';
+      var gap=window.innerHeight-window.visualViewport.height;
+      if(gap>2){bp.style.paddingBottom=gap+'px';bp.style.boxSizing='border-box';}
+      else{bp.style.paddingBottom='';}
+    }
+  }
+  setTimeout(fix,0);setTimeout(fix,100);setTimeout(fix,500);setTimeout(fix,2000);
+  if(window.visualViewport){window.visualViewport.addEventListener('resize',fix);window.visualViewport.addEventListener('scroll',fix);}
+  window.addEventListener('resize',fix);
+  document.addEventListener('visibilitychange',function(){if(!document.hidden)setTimeout(fix,200);});
+})();
