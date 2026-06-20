@@ -4,12 +4,13 @@ window.PhotoLab = window.PhotoLab || {};
   const MAX_PREVIEW = 1200;
 
   function renderToCanvas(canvas, img, s, maxDim) {
-    if (!img || !img.naturalWidth) return;
+    const sw=img.naturalWidth||img.videoWidth||0,sh=img.naturalHeight||img.videoHeight||0;
+    if(!sw)return;
     const ctx = canvas.getContext('2d', {willReadFrequently: true});
     let w = canvas.width, h = canvas.height;
     if (maxDim && maxDim > 0) {
-      const r = Math.min(maxDim / img.naturalWidth, maxDim / img.naturalHeight, 1);
-      w = Math.round(img.naturalWidth * r); h = Math.round(img.naturalHeight * r);
+      const r = Math.min(maxDim / sw, maxDim / sh, 1);
+      w = Math.round(sw * r); h = Math.round(sh * r);
       canvas.width = w; canvas.height = h;
     }
     const fp = [];
