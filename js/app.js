@@ -17,7 +17,7 @@
   let isDraggingText=false,dragTextId=null,dragOffX=0,dragOffY=0;
   let cameraStream=null,cameraActive=false,cameraFacing='environment';
   let cameraAspectRatio=4/3,cameraThumbImage=null;
-  let camFilterThumbs=[],camFilterInterval=null,activeCamFilter=0;
+  let camFilterThumbs=[],activeCamFilter=0;
   const ASPECT_RATIOS=[{id:'4:3',value:4/3,label:'4:3'},{id:'1:1',value:1,label:'1:1'},{id:'16:9',value:16/9,label:'16:9'}];
   let pinchStartDist=0,pinchStartZoom=1,isPinching=false;
   let lastTapTime=0,zoomPillTimer=null;
@@ -94,9 +94,64 @@
   zoomPill.addEventListener('click',()=>{zoom=1;panX=0;panY=0;applyZoom();zoomPill.classList.remove('visible');clearTimeout(zoomPillTimer);});
   function updateSizeBadge(){if(!currentImage){sizeBadge.style.display='none';return;}sizeBadge.textContent=currentImage.naturalWidth+'\u00d7'+currentImage.naturalHeight;sizeBadge.style.display='inline';}
 
-  /* ── CAMERA ── */
-  function settingsToCSSFilter(s){let b=s.brightness/100,c=s.contrast/100,sat=s.saturation/100;if(s.fade>0)b+=s.fade/100*0.15;const p=['brightness('+b.toFixed(2)+')','contrast('+c.toFixed(2)+')','saturate('+sat.toFixed(2)+')'];if(s.hue!==0)p.push('hue-rotate('+s.hue+'deg)');if(s.temperature>0)p.push('sepia('+Math.min(0.4,s.temperature/100*0.35).toFixed(2)+')');else if(s.temperature<0)p.push('hue-rotate('+(s.temperature*0.4).toFixed(1)+'deg)');return p.join(' ');}
-  function updateCameraFilter(){if(!cameraActive)return;cameraVideo.style.filter=settingsToCSSFilter(settings);}
+  /* ═══════════════════════════════════════════════════════
+     CAMERA — Real-time canvas preview (not CSS filter)
+     ═══════════════════════════════════════════════════════ */
+  let camPreviewCanvas=null, camPreviewRAF=null, camLastPreviewTime=0, camLastRenderDur=0;
+  let camThumbTimer=null;
+  const CAM_PREVIEW_MAX_DIM = Math.min(window.innerWidth < 400 ? 360 : 540, 600);
+  const CAM_PREVIEW_TARGET_FPS = 12;
+
+  function ensureCamPreviewCanvas(){
+    if(camPreviewCanvas)return;
+    camPreviewCanvas=document.createElement('canvas');
+    camPreviewCanvas.style.cssText='position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:1;';
+    cameraOverlay.insertBefore(camPreviewCanvas,cameraCropInner);
+  }
+
+  function camPreviewLoop(timestamp){
+    if(!cameraActive)return;
+    const targetInterval=Math.max(1000/CAM_PREVIEW_TARGET_FPS, camLastRenderDur*1.3);
+    if(timestamp-camLastPreviewTime<targetInterval){camPreviewRAF=requestAnimationFrame(camPreviewLoop);return;}
+    camLastPreviewTime=timestamp;
+    const t0=performance.now();
+    if(cameraVideo.videoWidth){
+      const vw=cameraVideo.videoWidth,vh=cameraVideo.videoHeight;
+      const sc=Math.min(CAM_PREVIEW_MAX_DIM/vw,CAM_PREVIEW_MAX_DIM/vh,1);
+      const pw=Math.round(vw*sc),ph=Math.round(vh*sc);
+      if(camPreviewCanvas.width!==pw||camPreviewCanvas.height!==ph){camPreviewCanvas.width=pw;camPreviewCanvas.height=ph;}
+      renderToCanvas(camPreviewCanvas,cameraVideo,settings,0);
+    }
+    camLastRenderDur=performance.now()-t0;
+    camPreviewRAF=requestAnimationFrame(camPreviewLoop);
+  }
+
+  function startCamPreview(){
+    stopCamPreview();ensureCamPreviewCanvas();
+    camPreviewCanvas.style.display='block';
+    cameraVideo.style.visibility='hidden';
+    cameraVideo.style.filter='none';
+    camLastPreviewTime=0;camLastRenderDur=0;
+    camPreviewRAF=requestAnimationFrame(camPreviewLoop);
+  }
+  function stopCamPreview(){
+    if(camPreviewRAF){cancelAnimationFrame(camPreviewRAF);camPreviewRAF=null;}
+    if(camPreviewCanvas)camPreviewCanvas.style.display='none';
+    cameraVideo.style.visibility='';
+  }
+
+  /* Thumbnail updates — fresh frame every 2s */
+  function captureFreshThumbnail(){
+    if(!cameraActive||!cameraVideo.videoWidth)return;
+    const tc=document.createElement('canvas');tc.width=48;tc.height=48;
+    const tctx=tc.getContext('2d');
+    const vw=cameraVideo.videoWidth,vh=cameraVideo.videoHeight,sz=Math.min(vw,vh);
+    tctx.drawImage(cameraVideo,(vw-sz)/2,(vh-sz)/2,sz,sz,0,0,48,48);
+    const img=new Image();img.onload=()=>{cameraThumbImage=img;updateCamFilterThumbs();};img.src=tc.toDataURL();
+  }
+  function startCamThumbUpdates(){stopCamThumbUpdates();captureFreshThumbnail();camThumbTimer=setInterval(captureFreshThumbnail,2000);}
+  function stopCamThumbUpdates(){if(camThumbTimer){clearInterval(camThumbTimer);camThumbTimer=null;}}
+
   function updateCameraCrop(){if(!cameraActive)return;const r=previewArea.getBoundingClientRect(),aW=r.width,aH=r.height-130;let bW,bH;if(aW/aH>cameraAspectRatio){bH=aH;bW=aH*cameraAspectRatio;}else{bW=aW-14;bH=(aW-14)/cameraAspectRatio;}cameraCropInner.style.width=Math.round(bW)+'px';cameraCropInner.style.height=Math.round(bH)+'px';}
   function updateCameraSizeBadge(){if(!cameraActive||!cameraVideo.videoWidth){cameraSizeBadge.textContent='';return;}const vw=cameraVideo.videoWidth,vh=cameraVideo.videoHeight,vr=vw/vh;let w,h;if(vr>cameraAspectRatio){h=vh;w=Math.round(vh*cameraAspectRatio);}else{w=vw;h=Math.round(vw/cameraAspectRatio);}cameraSizeBadge.textContent=w+'\u00d7'+h;}
 
@@ -104,14 +159,14 @@
     camFilterStrip.innerHTML='';camFilterThumbs=[];
     const noneItem=document.createElement('div');noneItem.className='cam-filter-item'+(activeCamFilter===-1?' active':'');
     noneItem.innerHTML='<div class="cam-filter-thumb"><canvas width="48" height="48"></canvas></div><div class="cam-filter-name">None</div>';
-    noneItem.addEventListener('click',()=>{activeCamFilter=-1;settings={...DEFAULTS};updateCameraFilter();updateCamFilterActive();});
+    noneItem.addEventListener('click',()=>{activeCamFilter=-1;settings={...DEFAULTS};updateCamFilterActive();});
     camFilterStrip.appendChild(noneItem);
     camFilterThumbs.push({el:noneItem,idx:-1,canvas:noneItem.querySelector('canvas')});
     CAM_STRIP_IDS.forEach((pidx,i)=>{
       const pr=PRESETS[pidx];if(!pr)return;
       const item=document.createElement('div');item.className='cam-filter-item'+(activeCamFilter===pidx?' active':'');
       item.innerHTML='<div class="cam-filter-thumb"><canvas width="48" height="48"></canvas></div><div class="cam-filter-name">'+(CAM_STRIP_LABELS[i]||pr.name)+'</div>';
-      item.addEventListener('click',()=>{activeCamFilter=pidx;Object.keys(DEFAULTS).forEach(k=>{settings[k]=pr[k]!==undefined?pr[k]:DEFAULTS[k];});updateCameraFilter();updateCamFilterActive();});
+      item.addEventListener('click',()=>{activeCamFilter=pidx;Object.keys(DEFAULTS).forEach(k=>{settings[k]=pr[k]!==undefined?pr[k]:DEFAULTS[k];});updateCamFilterActive();});
       camFilterStrip.appendChild(item);
       camFilterThumbs.push({el:item,idx:pidx,canvas:item.querySelector('canvas')});
     });
@@ -119,11 +174,8 @@
   }
   function updateCamFilterActive(){camFilterThumbs.forEach(t=>t.el.classList.toggle('active',t.idx===activeCamFilter));}
   function updateCamFilterThumbs(){if(!cameraActive||!cameraThumbImage)return;camFilterThumbs.forEach(t=>{const pr=t.idx===-1?DEFAULTS:PRESETS[t.idx];if(pr)renderToCanvas(t.canvas,cameraThumbImage,pr,48);});}
-  function startCamFilterLoop(){stopCamFilterLoop();camFilterInterval=setInterval(updateCamFilterThumbs,500);}
-  function stopCamFilterLoop(){if(camFilterInterval){clearInterval(camFilterInterval);camFilterInterval=null;}}
-  function captureCameraThumbnail(){if(!cameraActive||!cameraVideo.videoWidth)return;requestAnimationFrame(()=>{if(!cameraActive)return;const tc=document.createElement('canvas');tc.width=48;tc.height=48;const tctx=tc.getContext('2d');const vw=cameraVideo.videoWidth,vh=cameraVideo.videoHeight,sz=Math.min(vw,vh);tctx.drawImage(cameraVideo,(vw-sz)/2,(vh-sz)/2,sz,sz,0,0,48,48);const img=new Image();img.onload=()=>{cameraThumbImage=img;updateCamFilterThumbs();};img.src=tc.toDataURL();});}
 
-  function stopCameraStream(){stopCamFilterLoop();if(cameraStream){cameraStream.getTracks().forEach(t=>t.stop());cameraStream=null;}cameraActive=false;cameraOverlay.style.display='none';previewCanvas.style.display='block';imageFrame.style.display='inline-block';cameraThumbImage=null;}
+  function stopCameraStream(){stopCamPreview();stopCamThumbUpdates();if(cameraStream){cameraStream.getTracks().forEach(t=>t.stop());cameraStream=null;}cameraActive=false;cameraOverlay.style.display='none';previewCanvas.style.display='block';imageFrame.style.display='inline-block';cameraThumbImage=null;}
   function cameraGoBack(){if(!currentImage){editorScreen.classList.remove('visible');uploadScreen.classList.remove('hidden');}}
   function closeCamera(){stopCameraStream();if(!currentImage)cameraGoBack();else requestRender();}
 
@@ -142,13 +194,15 @@
       activeCamFilter=CAM_STRIP_IDS[0];
       const defPr=PRESETS[CAM_STRIP_IDS[0]];
       Object.keys(DEFAULTS).forEach(k=>{settings[k]=defPr[k]!==undefined?defPr[k]:DEFAULTS[k];});
-      buildCamFilterStrip();updateCameraFilter();
-      if(cameraVideo.readyState>=1){updateCameraSizeBadge();captureCameraThumbnail();startCamFilterLoop();}
-      else{cameraVideo.addEventListener('loadedmetadata',()=>{updateCameraSizeBadge();captureCameraThumbnail();startCamFilterLoop();},{once:true});}
+      buildCamFilterStrip();
+      const onReady=()=>{updateCameraSizeBadge();startCamPreview();startCamThumbUpdates();};
+      if(cameraVideo.readyState>=1)onReady();
+      else cameraVideo.addEventListener('loadedmetadata',onReady,{once:true});
       setTimeout(()=>{camFilterStrip.classList.add('visible');updateCameraCrop();},200);
     }catch(err){console.error(err);if(err.name==='NotAllowedError')showToast('Camera permission denied');else if(err.name==='NotFoundError')showToast('No camera found');else if(err.name==='NotReadableError')showToast('Camera in use');else showToast('Camera error');cameraGoBack();}
   }
   async function switchCamera(){cameraFacing=cameraFacing==='environment'?'user':'environment';await openCamera();}
+
   function capturePhoto(){
     if(!cameraActive||!cameraVideo.videoWidth)return;
     cameraFlash.classList.add('flash');setTimeout(()=>cameraFlash.classList.remove('flash'),300);
@@ -157,14 +211,24 @@
     let cW,cH,cX,cY;if(vr>cameraAspectRatio){cH=vh;cW=vh*cameraAspectRatio;cX=(vw-cW)/2;cY=0;}else{cW=vw;cH=vw/cameraAspectRatio;cX=0;cY=(vh-cH)/2;}
     const cc=document.createElement('canvas');cc.width=Math.round(cW);cc.height=Math.round(cH);
     cc.getContext('2d').drawImage(cameraVideo,cX,cY,cW,cH,0,0,cc.width,cc.height);
+    /* Snapshot settings BEFORE any async work */
+    const savedSettings={...settings};
+    const savedEffects={...effects};
     const img=new Image();img.onload=()=>{
       currentImage=img;currentFileName='photo_'+Date.now()+'.jpg';
       baseBuffer=null;strokeBuffer=null;tempBuffer=null;undoStack=[];
-      effects={...DEFAULT_EFFECTS};texts=[];selectedTextId=null;textProps.style.display='none';renderTextList();activePresetIdx=-1;
+      /* Restore exact filter settings */
+      settings=savedSettings;effects=savedEffects;
+      texts=[];selectedTextId=null;textProps.style.display='none';renderTextList();activePresetIdx=-1;
       SLIDERS.forEach(s=>{const i=$('sl_'+s.id),v=$('vl_'+s.id);i.value=settings[s.id];v.textContent=fmtVal(settings[s.id],s);updateFill(i);});
       document.querySelectorAll('.preset-item').forEach(el=>el.classList.remove('active'));
-      clearBrushStrokes();buildEffectsPanel();stopCameraStream();
-      requestRender();
+      clearBrushStrokes();buildEffectsPanel();
+      stopCameraStream();
+      /* Direct render — bypass requestRender for reliability */
+      initBuffers();
+      renderToCanvas(baseBuffer,currentImage,settings,0);
+      compositePreview(previewCanvas,baseBuffer,strokeBuffer,effects,texts);
+      fitCanvasCSS();
       uploadScreen.classList.add('hidden');editorScreen.classList.add('visible');
       if(appSettings.autoFit){zoom=1;panX=0;panY=0;applyZoom();}
       updateBrushCursor();updateSizeBadge();setTimeout(()=>renderPresetGrid(),120);
@@ -179,7 +243,7 @@
   /* ── BUILD UI ── */
   CATEGORIES.forEach(c=>{const b=document.createElement('button');b.className='cat-pill'+(c.id==='all'?' active':'');b.textContent=c.label;b.dataset.cat=c.id;b.addEventListener('click',()=>{activeCategory=c.id;document.querySelectorAll('.cat-pill').forEach(p=>p.classList.toggle('active',p.dataset.cat===c.id));renderPresetGrid();});categoryBar.appendChild(b);});
   let lastSec='';
-  SLIDERS.forEach(s=>{if(s.section!==lastSec){lastSec=s.section;const h=document.createElement('div');h.className='slider-section';h.textContent=s.section;slidersList.appendChild(h);}const row=document.createElement('div');row.className='slider-row';const lbl=document.createElement('div');lbl.className='slider-label';lbl.textContent=s.label;const wrap=document.createElement('div');wrap.className='slider-wrap';const inp=document.createElement('input');inp.type='range';inp.id='sl_'+s.id;inp.min=s.min;inp.max=s.max;inp.value=s.def;if(s.step)inp.step=s.step;updateFill(inp);const val=document.createElement('div');val.className='slider-val';val.id='vl_'+s.id;val.textContent=fmtVal(s.def,s);inp.addEventListener('input',()=>{settings[s.id]=+inp.value;val.textContent=fmtVal(+inp.value,s);updateFill(inp);requestRender();deselectPreset();if(cameraActive)updateCameraFilter();});wrap.appendChild(inp);row.appendChild(lbl);row.appendChild(wrap);row.appendChild(val);slidersList.appendChild(row);});
+  SLIDERS.forEach(s=>{if(s.section!==lastSec){lastSec=s.section;const h=document.createElement('div');h.className='slider-section';h.textContent=s.section;slidersList.appendChild(h);}const row=document.createElement('div');row.className='slider-row';const lbl=document.createElement('div');lbl.className='slider-label';lbl.textContent=s.label;const wrap=document.createElement('div');wrap.className='slider-wrap';const inp=document.createElement('input');inp.type='range';inp.id='sl_'+s.id;inp.min=s.min;inp.max=s.max;inp.value=s.def;if(s.step)inp.step=s.step;updateFill(inp);const val=document.createElement('div');val.className='slider-val';val.id='vl_'+s.id;val.textContent=fmtVal(s.def,s);inp.addEventListener('input',()=>{settings[s.id]=+inp.value;val.textContent=fmtVal(+inp.value,s);updateFill(inp);requestRender();deselectPreset();});wrap.appendChild(inp);row.appendChild(lbl);row.appendChild(wrap);row.appendChild(val);slidersList.appendChild(row);});
 
   /* ── BRUSH UI ── */
   BRUSH_TYPES.forEach(b=>{const btn=document.createElement('button');btn.className='brush-type-btn'+(b.id===activeBrush?' active':'');btn.innerHTML='<i class="'+b.icon+'"></i> '+b.label;btn.dataset.brush=b.id;btn.addEventListener('click',()=>{activeBrush=b.id;document.querySelectorAll('.brush-type-btn').forEach(x=>x.classList.toggle('active',x.dataset.brush===activeBrush));});brushTypesEl.appendChild(btn);});
@@ -203,11 +267,11 @@
   function renderPresetGrid(){presetsGrid.innerHTML='';const f=activeCategory==='all'?PRESETS:PRESETS.filter(p=>p.cat===activeCategory);f.forEach(pr=>{const gi=PRESETS.indexOf(pr);const item=document.createElement('div');item.className='preset-item'+(gi===activePresetIdx?' active':'');item.dataset.idx=gi;const thumb=document.createElement('div');thumb.className='preset-thumb';const c=document.createElement('canvas');c.width=80;c.height=80;thumb.appendChild(c);const name=document.createElement('div');name.className='preset-name';name.textContent=pr.name;item.appendChild(thumb);item.appendChild(name);item.addEventListener('click',()=>applyPreset(gi));presetsGrid.appendChild(item);const src=cameraActive?cameraThumbImage:currentImage;if(src)requestAnimationFrame(()=>renderToCanvas(c,src,pr,80));});}
 
   /* ── RENDERING ── */
-  function initBuffers(){if(!currentImage)return;const r=Math.min(MAX_PREVIEW/currentImage.naturalWidth,MAX_PREVIEW/currentImage.naturalHeight,1);const w=Math.round(currentImage.naturalWidth*r),h=Math.round(currentImage.naturalHeight*r);if(!baseBuffer)baseBuffer=document.createElement('canvas');if(!strokeBuffer)strokeBuffer=document.createElement('canvas');if(!tempBuffer)tempBuffer=document.createElement('canvas');baseBuffer.width=w;baseBuffer.height=h;strokeBuffer.width=w;strokeBuffer.height=h;tempBuffer.width=w;tempBuffer.height=h;previewCanvas.width=w;previewCanvas.height=h;previewCanvas.style.width='';previewCanvas.style.height='';PhotoLab._previewDim={w,h};fitCanvasCSS();}
+  function initBuffers(){if(!currentImage)return;const r=Math.min(MAX_PREVIEW/currentImage.naturalWidth,MAX_PREVIEW/currentImage.naturalHeight,1);const w=Math.round(currentImage.naturalWidth*r),h=Math.round(currentImage.naturalHeight*r);if(!baseBuffer)baseBuffer=document.createElement('canvas');if(!strokeBuffer)strokeBuffer=document.createElement('canvas');if(!tempBuffer)tempBuffer=document.createElement('canvas');baseBuffer.width=w;baseBuffer.height=h;strokeBuffer.width=w;strokeBuffer.height=h;tempBuffer.width=w;tempBuffer.height=h;previewCanvas.width=w;previewCanvas.height=h;previewCanvas.style.width='';previewCanvas.style.height='';PhotoLab._previewDim={w,h};}
   function requestRender(){if(!renderPending&&currentImage){renderPending=true;requestAnimationFrame(()=>{renderPending=false;doRender();});}}
   function doRender(){if(!currentImage||isComparing)return;if(!baseBuffer)initBuffers();renderToCanvas(baseBuffer,currentImage,settings,0);compositePreview(previewCanvas,baseBuffer,strokeBuffer,effects,texts);}
   function deselectPreset(){if(activePresetIdx!==-1){activePresetIdx=-1;document.querySelectorAll('.preset-item').forEach(el=>el.classList.remove('active'));}}
-  function applyPreset(idx){const pr=PRESETS[idx];if(!pr)return;activePresetIdx=idx;Object.keys(DEFAULTS).forEach(k=>{settings[k]=pr[k]!==undefined?pr[k]:DEFAULTS[k];});effects={...DEFAULT_EFFECTS};if(pr._fx)Object.keys(pr._fx).forEach(k=>{if(k in DEFAULT_EFFECTS)effects[k]=pr._fx[k];});SLIDERS.forEach(s=>{const i=$('sl_'+s.id),v=$('vl_'+s.id);i.value=settings[s.id];v.textContent=fmtVal(settings[s.id],s);updateFill(i);});document.querySelectorAll('.preset-item').forEach(el=>el.classList.toggle('active',+el.dataset.idx===idx));buildEffectsPanel();clearBrushStrokes();if(cameraActive)updateCameraFilter();else requestRender();}
+  function applyPreset(idx){const pr=PRESETS[idx];if(!pr)return;activePresetIdx=idx;Object.keys(DEFAULTS).forEach(k=>{settings[k]=pr[k]!==undefined?pr[k]:DEFAULTS[k];});effects={...DEFAULT_EFFECTS};if(pr._fx)Object.keys(pr._fx).forEach(k=>{if(k in DEFAULT_EFFECTS)effects[k]=pr._fx[k];});SLIDERS.forEach(s=>{const i=$('sl_'+s.id),v=$('vl_'+s.id);i.value=settings[s.id];v.textContent=fmtVal(settings[s.id],s);updateFill(i);});document.querySelectorAll('.preset-item').forEach(el=>el.classList.toggle('active',+el.dataset.idx===idx));buildEffectsPanel();clearBrushStrokes();requestRender();}
 
   /* ── BRUSH ENGINE ── */
   function pushUndo(){if(!strokeBuffer)return;undoStack.push(strokeBuffer.getContext('2d').getImageData(0,0,strokeBuffer.width,strokeBuffer.height));if(undoStack.length>MAX_UNDO)undoStack.shift();}
@@ -220,52 +284,26 @@
     const sctx=strokeBuffer.getContext('2d');
     const r=Math.max(2,brushSize*(w/MAX_PREVIEW));
     const str=brushStrength/100;
-
     if(activeBrush==='blur'){
       const tctx=tempBuffer.getContext('2d');
-      /* Blur amount in preview pixels — aggressive for visibility on small screens */
       const blurAmount=Math.max(2,str*25);
       const pad=Math.ceil(blurAmount*1.5);
-      const bx0=Math.max(0,Math.floor(cx-r-pad));
-      const by0=Math.max(0,Math.floor(cy-r-pad));
-      const bx1=Math.min(w,Math.ceil(cx+r+pad));
-      const by1=Math.min(h,Math.ceil(cy+r+pad));
-      const bw=Math.max(1,bx1-bx0);
-      const bh=Math.max(1,by1-by0);
-
-      /*
-       * Downscale-upscale blur: works on ALL browsers including
-       * mobile Safari where ctx.filter is unsupported.
-       * Drawing big → tiny → big with smoothing = Gaussian-like blur.
-       */
+      const bx0=Math.max(0,Math.floor(cx-r-pad)),by0=Math.max(0,Math.floor(cy-r-pad));
+      const bx1=Math.min(w,Math.ceil(cx+r+pad)),by1=Math.min(h,Math.ceil(cy+r+pad));
+      const bw=Math.max(1,bx1-bx0),bh=Math.max(1,by1-by0);
       const factor=Math.max(0.02,1/blurAmount);
-      const sw=Math.max(1,Math.round(bw*factor));
-      const sh=Math.max(1,Math.round(bh*factor));
-
-      const smallC=document.createElement('canvas');
-      smallC.width=sw;smallC.height=sh;
+      const sw=Math.max(1,Math.round(bw*factor)),sh=Math.max(1,Math.round(bh*factor));
+      const smallC=document.createElement('canvas');smallC.width=sw;smallC.height=sh;
       const smCtx=smallC.getContext('2d');
-      /* Draw base + existing strokes downscaled (this IS the blur) */
       smCtx.drawImage(baseBuffer,bx0,by0,bw,bh,0,0,sw,sh);
       smCtx.drawImage(strokeBuffer,bx0,by0,bw,bh,0,0,sw,sh);
-
-      /* Upscale back with smooth interpolation → blur effect */
-      tctx.clearRect(0,0,w,h);
-      tctx.imageSmoothingEnabled=true;
-      tctx.imageSmoothingQuality='high';
+      tctx.clearRect(0,0,w,h);tctx.imageSmoothingEnabled=true;tctx.imageSmoothingQuality='high';
       tctx.drawImage(smallC,0,0,sw,sh,bx0,by0,bw,bh);
-
-      /* Paint blurred region onto stroke buffer, clipped to brush circle */
-      sctx.save();
-      sctx.beginPath();sctx.arc(cx,cy,r,0,Math.PI*2);sctx.clip();
+      sctx.save();sctx.beginPath();sctx.arc(cx,cy,r,0,Math.PI*2);sctx.clip();
       sctx.drawImage(tempBuffer,bx0,by0,bw,bh,bx0,by0,bw,bh);
       sctx.restore();
-
     }else if(activeBrush==='erase'){
-      sctx.save();
-      sctx.beginPath();sctx.arc(cx,cy,r,0,Math.PI*2);sctx.clip();
-      sctx.clearRect(0,0,w,h);
-      sctx.restore();
+      sctx.save();sctx.beginPath();sctx.arc(cx,cy,r,0,Math.PI*2);sctx.clip();sctx.clearRect(0,0,w,h);sctx.restore();
     }
   }
 
@@ -310,7 +348,7 @@
   zoomInBtn.addEventListener('click',()=>zoomTo(zoom*1.3));zoomOutBtn.addEventListener('click',()=>zoomTo(zoom/1.3));zoomFitBtn.addEventListener('click',()=>{zoom=1;panX=0;panY=0;applyZoom();});
   previewArea.addEventListener('wheel',e=>{e.preventDefault();zoomTo(zoom*(e.deltaY>0?0.9:1.1),e.clientX,e.clientY);},{passive:false});
 
-  /* ── TOUCH EVENTS — single handler, no duplicates ── */
+  /* ── TOUCH EVENTS ── */
   previewArea.addEventListener('touchstart',e=>{
     if(e.touches.length===2&&!cameraActive&&currentImage){pinchStartDist=getTouchDist(e);pinchStartZoom=zoom;isPinching=true;}
     if(e.touches.length===1&&activeTab==='tools'&&!cameraActive&&currentImage&&!isComparing){e.preventDefault();const t=e.touches[0];const{x,y}=screenToCanvas(t.clientX,t.clientY);isPainting=true;lastBrushX=x;lastBrushY=y;pushUndo();paintAt(x,y);compositePreview(previewCanvas,baseBuffer,strokeBuffer,effects,texts);}
