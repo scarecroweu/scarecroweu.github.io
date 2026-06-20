@@ -75,11 +75,66 @@ window.PhotoLab = window.PhotoLab || {};
   function drawTextWithSpacing(ctx,text,x,y,spacing){if(!spacing||spacing===0){ctx.fillText(text,x,y);return;}let cx=x;for(let i=0;i<text.length;i++){ctx.fillText(text[i],cx,y);cx+=ctx.measureText(text[i]).width+spacing;}}
   function strokeTextWithSpacing(ctx,text,x,y,spacing){if(!spacing||spacing===0){ctx.strokeText(text,x,y);return;}let cx=x;for(let i=0;i<text.length;i++){ctx.strokeText(text[i],cx,y);cx+=ctx.measureText(text[i]).width+spacing;}}
 
+    function applyCustomEffects(ctx,w,h,effects,scale){
+    scale=scale||1;
+    let hasChromatic=false;
+    for(const fx of effects)if(fx.type==='chromatic'){hasChromatic=true;break;}
+    if(hasChromatic){
+      for(const fx of effects){
+        if(fx.type==='chromatic'){
+          const off=Math.max(1,Math.round(fx.amount*scale));
+          const src=ctx.getImageData(0,0,w,h),dst=ctx.getImageData(0,0,w,h);
+          const sd=src.data,dd=dst.data;
+          for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+            const i=(y*w+x)*4;
+            dd[i]=sd[(y*w+Math.min(w-1,x+off))*4];
+            dd[i+2]=sd[(y*w+Math.max(0,x-off))*4+2];
+          }
+          ctx.putImageData(dst,0,0);break;
+        }
+      }
+    }
+    const id=ctx.getImageData(0,0,w,h),d=id.data;
+    for(const fx of effects){
+      switch(fx.type){
+        case'duotone':{
+          const[sr,sg,sb]=fx.shadow,[hr,hg,hb]=fx.highlight;
+          for(let i=0;i<d.length;i+=4){
+            const lum=(d[i]*.299+d[i+1]*.587+d[i+2]*.114)/255;
+            d[i]=sr+(hr-sr)*lum;d[i+1]=sg+(hg-sg)*lum;d[i+2]=sb+(hb-sb)*lum;
+          }break;}
+        case'scanlines':{
+          const sp=Math.max(2,Math.round((fx.spacing||3)*scale));
+          const[cr,cg,cb]=fx.color,int=fx.intensity;
+          for(let y=0;y<h;y+=sp)for(let x=0;x<w;x++){
+            const i=(y*w+x)*4;
+            d[i]=d[i]*(1-int)+cr*int;d[i+1]=d[i+1]*(1-int)+cg*int;d[i+2]=d[i+2]*(1-int)+cb*int;
+          }break;}
+        case'colorGrade':{
+          const c=fx.curves;
+          for(let i=0;i<d.length;i+=4)for(let ch=0;ch<3;ch++){
+            const k=ch===0?'r':ch===1?'g':'b';
+            const[a,b,cc]=c[k],v=d[i+ch]/255;
+            d[i+ch]=Math.max(0,Math.min(255,(a*v*v+b*v+cc)*255));
+          }break;}
+        case'coloredGrain':{
+          const[cr,cg,cb]=fx.color,amt=fx.amount*Math.min(scale,2.5);
+          for(let i=0;i<d.length;i+=4){
+            const n=(Math.random()-.5)*amt;
+            d[i]=Math.max(0,Math.min(255,d[i]+n*cr));
+            d[i+1]=Math.max(0,Math.min(255,d[i+1]+n*cg));
+            d[i+2]=Math.max(0,Math.min(255,d[i+2]+n*cb));
+          }break;}
+      }
+    }
+    ctx.putImageData(id,0,0);
+  }
+
   function drawTexts(ctx,w,h,texts){texts.forEach(t=>{ctx.save();ctx.font=(t.fontWeight||'600')+' '+t.fontSize+'px "'+t.fontFamily+'", sans-serif';ctx.textBaseline='top';ctx.globalAlpha=(t.opacity!==undefined?t.opacity:100)/100;if(t.textBlur>0)ctx.filter='blur('+t.textBlur+'px)';if(t.glow){ctx.shadowColor=t.glowColor||'#ffffff';ctx.shadowBlur=t.glowIntensity||20;}else{ctx.shadowColor='rgba(0,0,0,0.5)';ctx.shadowBlur=4;ctx.shadowOffsetX=1;ctx.shadowOffsetY=1;}if(t.outline){ctx.strokeStyle=t.outlineColor||'#000000';ctx.lineWidth=t.outlineWidth||2;ctx.lineJoin='round';strokeTextWithSpacing(ctx,t.text,t.x,t.y,t.letterSpacing||0);}ctx.fillStyle=t.color;drawTextWithSpacing(ctx,t.text,t.x,t.y,t.letterSpacing||0);ctx.restore();});}
 
   function renderOriginal(canvas,img,maxDim){if(!img||!img.naturalWidth)return;const ctx=canvas.getContext('2d');let w,h;if(maxDim>0){const r=Math.min(maxDim/img.naturalWidth,maxDim/img.naturalHeight,1);w=Math.round(img.naturalWidth*r);h=Math.round(img.naturalHeight*r);}else{w=img.naturalWidth;h=img.naturalHeight;}canvas.width=w;canvas.height=h;ctx.filter='none';ctx.drawImage(img,0,0,w,h);}
 
-  function compositePreview(canvas,baseBuf,strokeBuf,fx,texts){const w=canvas.width,h=canvas.height,ctx=canvas.getContext('2d');ctx.clearRect(0,0,w,h);ctx.drawImage(baseBuf,0,0);if(strokeBuf)ctx.drawImage(strokeBuf,0,0);if(fx.dateStamp)drawDateStamp(ctx,w,h,fx);if(fx.colorShift>0)drawColorShift(ctx,w,h,fx.colorShift);if(fx.frame&&fx.frame!=='none')drawFrame(ctx,w,h,fx.frame);if(texts.length)drawTexts(ctx,w,h,texts);}
+  function compositePreview(canvas,baseBuf,strokeBuf,fx,texts){const w=canvas.width,h=canvas.height,ctx=canvas.getContext('2d');ctx.clearRect(0,0,w,h);ctx.drawImage(baseBuf,0,0);if(strokeBuf)ctx.drawImage(strokeBuf,0,0);if(fx._customEffects)applyCustomEffects(ctx,w,h,fx._customEffects,1);if(fx.dateStamp)drawDateStamp(ctx,w,h,fx);if(fx.colorShift>0)drawColorShift(ctx,w,h,fx.colorShift);if(fx.frame&&fx.frame!=='none')drawFrame(ctx,w,h,fx.frame);if(texts.length)drawTexts(ctx,w,h,texts);}
 
   function renderExport(img,settings,fx,texts,strokeBufFullRes){
     const w=img.naturalWidth,h=img.naturalHeight;
@@ -87,6 +142,7 @@ window.PhotoLab = window.PhotoLab || {};
     renderToCanvas(c,img,settings,0);
     if(settings.sharpness>0){const tmp=document.createElement('canvas');tmp.width=w;tmp.height=h;const tc=tmp.getContext('2d');tc.filter='blur('+Math.max(0.5,settings.sharpness/50)+'px)';tc.drawImage(c,0,0);const ctx=c.getContext('2d');const orig=ctx.getImageData(0,0,w,h),blur=tc.getImageData(0,0,w,h),od=orig.data,bd=blur.data,sc=settings.sharpness/100*2;for(let i=0;i<od.length;i+=4){od[i]=Math.max(0,Math.min(255,od[i]+sc*(od[i]-bd[i])));od[i+1]=Math.max(0,Math.min(255,od[i+1]+sc*(od[i+1]-bd[i+1])));od[i+2]=Math.max(0,Math.min(255,od[i+2]+sc*(od[i+2]-bd[i+2])));}ctx.putImageData(orig,0,0);}
     if(strokeBufFullRes)c.getContext('2d').drawImage(strokeBufFullRes,0,0);
+    if(fx._customEffects){const sc=img.naturalWidth/(PhotoLab._previewDim?.w||img.naturalWidth);applyCustomEffects(ctx,w,h,fx._customEffects,sc);}
     if(fx.dateStamp)drawDateStamp(c.getContext('2d'),w,h,fx);
     if(fx.colorShift>0)drawColorShift(c.getContext('2d'),w,h,fx.colorShift);
     if(fx.frame&&fx.frame!=='none')drawFrame(c.getContext('2d'),w,h,fx.frame);
