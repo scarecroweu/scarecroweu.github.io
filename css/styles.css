@@ -10,11 +10,10 @@ body.light-mode{
   --text:#1a1816;--muted:#8a857e;--accent:#a87d4f;--accent-dim:rgba(168,125,79,.1);
   --check-a:#e8e4da;--check-b:#ddd9cf;
 }
-html,body{height:100%;overflow:hidden;-webkit-tap-highlight-color:transparent}
-@supports(height:100dvh){html,body{height:100dvh}}
+html,body{height:100%;height:-webkit-fill-available;overflow:hidden;-webkit-tap-highlight-color:transparent}
 body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);transition:background .35s,color .35s}
 
-#uploadScreen{display:flex;align-items:center;justify-content:center;height:100dvh;position:relative;z-index:10;transition:opacity .4s,transform .4s;flex-direction:column;gap:0;padding:20px}
+#uploadScreen{display:flex;align-items:center;justify-content:center;height:100%;height:-webkit-fill-available;position:relative;z-index:10;transition:opacity .4s,transform .4s;flex-direction:column;gap:0;padding:20px}
 #uploadScreen.hidden{opacity:0;transform:scale(.96);pointer-events:none;position:absolute;inset:0}
 .upload-zone{width:440px;max-width:90vw;padding:60px 40px;border:2px dashed var(--border);border-radius:16px;text-align:center;cursor:pointer;transition:border-color .25s,background .25s;background:var(--surface)}
 .upload-zone:hover,.upload-zone.dragover{border-color:var(--accent);background:var(--accent-dim)}
@@ -31,8 +30,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);tra
 .upload-hint{position:absolute;bottom:32px;font-size:12px;color:var(--muted)}
 .upload-hint kbd{background:var(--card);border:1px solid var(--border);border-radius:4px;padding:2px 6px;font-family:inherit;font-size:11px}
 
-#editorScreen{display:none;height:100%;flex-direction:column;opacity:0;transition:opacity .4s}
-@supports(height:100dvh){#editorScreen{height:100dvh}}
+#editorScreen{display:none;height:100%;height:-webkit-fill-available;flex-direction:column;opacity:0;transition:opacity .4s}
 #editorScreen.visible{display:flex;opacity:1}
 .editor-header{height:var(--header-h);display:flex;align-items:center;justify-content:space-between;padding:0 16px;border-bottom:1px solid var(--border);flex-shrink:0;background:var(--surface);transition:background .35s}
 .header-left{display:flex;align-items:center;gap:8px}
@@ -194,7 +192,7 @@ input[type="range"]::-moz-range-progress{height:3px;border-radius:2px;background
 .settings-modal{position:fixed;inset:0;z-index:200;display:none;align-items:center;justify-content:center}
 .settings-modal.open{display:flex}
 .settings-overlay{position:absolute;inset:0;background:rgba(0,0,0,.55);backdrop-filter:blur(4px);animation:fadeIn .2s ease}
-.settings-content{position:relative;width:440px;max-width:92vw;max-height:80dvh;background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden;display:flex;flex-direction:column;animation:slideUp .25s ease;box-shadow:0 24px 80px rgba(0,0,0,.5)}
+.settings-content{position:relative;width:440px;max-width:92vw;max-height:80vh;background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden;display:flex;flex-direction:column;animation:slideUp .25s ease;box-shadow:0 24px 80px rgba(0,0,0,.5)}
 @keyframes fadeIn{from{opacity:0}to{opacity:1}}
 @keyframes slideUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
 .settings-header{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--border)}
@@ -222,7 +220,6 @@ input[type="range"]::-moz-range-progress{height:3px;border-radius:2px;background
 
 @media(max-width:768px){
   :root{--panel-h:148px;--header-h:42px}
-  @media(display-mode:standalone){:root{--panel-h:148px}}
   .editor-header{padding:0 6px}
   .header-actions{gap:2px}
   .header-sep{display:none}
@@ -271,7 +268,7 @@ input[type="range"]::-moz-range-progress{height:3px;border-radius:2px;background
   .shutter-inner{width:42px;height:42px}
   .ratio-btn{padding:2px 8px;font-size:9px}
   .cam-btn{width:32px;height:32px;font-size:11px}
-  .settings-content{width:95vw;max-height:85dvh}
+  .settings-content{width:95vw;max-height:85vh}
   .setting-row{font-size:12px}
   .toggle{width:38px;height:21px}
   .toggle .slider::before{width:17px;height:17px}
@@ -280,7 +277,7 @@ input[type="range"]::-moz-range-progress{height:3px;border-radius:2px;background
   .zoom-reset-pill{bottom:8px;right:8px;padding:5px 12px;font-size:11px}
 }
 @media(max-width:380px){
-  :root{--panel-h:calc(132px + var(--safe-b)}
+  :root{--panel-h:132px}
   .tab-btn{font-size:7px;padding:5px 0 4px}
   .tab-btn i{font-size:10px}
   .preset-item{width:58px}
@@ -290,15 +287,6 @@ input[type="range"]::-moz-range-progress{height:3px;border-radius:2px;background
   .slider-val{width:26px;font-size:9px}
   .cam-filter-thumb{width:32px;height:32px}
 }
-@media(display-mode:standalone){
-  #editorScreen{height:calc(100dvh - env(safe-area-inset-bottom,0px))!important}
-  .bottom-panel{height:var(--panel-h);border-top:1px solid var(--border);flex-shrink:0;display:flex;flex-direction:column;background:var(--surface);transition:background .35s}
-  .editor-header{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px)}
-  .camera-top-controls{padding-top:calc(10px + env(safe-area-inset-top,0px))}
-  .camera-bottom-controls{padding-bottom:calc(22px + env(safe-area-inset-bottom,0px))}
-  .upload-hint{bottom:calc(14px + env(safe-area-inset-bottom,0px))}
-}
-
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{transition-duration:0s!important;animation-duration:0s!important}}
 
 .slider-val{cursor:pointer;border-radius:4px;padding:0 4px;transition:color .15s,background .15s;user-select:none;-webkit-user-select:none}
@@ -308,6 +296,3 @@ input[type="range"]::-moz-range-progress{height:3px;border-radius:2px;background
 body.light-mode .slider-val-input{background:var(--card);color:var(--text);border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-dim)}
 @media(max-width:768px){.slider-val-input{width:40px;font-size:10px;padding:2px 3px}}
 @media(max-width:380px){.slider-val-input{width:36px;font-size:9px;padding:2px 2px}}
-@media(max-width:768px){
-  .bottom-panel{padding-bottom:env(safe-area-inset-bottom,0px);box-sizing:border-box}
-}
